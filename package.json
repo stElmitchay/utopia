@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.30.1",
+    "@privy-io/react-auth": "^3.7.0",
     "@solana/actions": "1.6.6",
     "@solana/spl-token": "0.4.9",
     "@solana/wallet-adapter-base": "0.9.23",
@@ -28,6 +29,7 @@
     "clsx": "^2.1.1",
     "daisyui": "4.12.10",
     "framer-motion": "10.18.0",
+    "html2canvas": "^1.4.1",
     "jotai": "2.9.1",
     "next": "14.2.5",
     "pino-pretty": "10.2.3",

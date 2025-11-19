@@ -1,5 +1,5 @@
 {
-  "address": "5zuwXytbwB9nDBvpcP8n235F2hBJSSPc561MB25kZboX",
+  "address": "68RZ4ff8QL3FMWBcxYnk5YZ7hx6Vxxg4oA6Ews2rLR7a",
   "metadata": {
     "name": "votingapplication",
     "version": "0.1.0",
@@ -7,6 +7,44 @@
     "description": "Created with Anchor"
   },
   "instructions": [
+    {
+      "name": "close_poll_early",
+      "discriminator": [
+        156,
+        45,
+        218,
+        12,
+        167,
+        89,
+        234,
+        201
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "poll",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "arg",
+                "path": "poll_id"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "_poll_id",
+          "type": "u64"
+        }
+      ]
+    },
     {
       "name": "initialize_candidate",
       "discriminator": [
@@ -138,6 +176,7 @@
       "accounts": [
         {
           "name": "signer",
+          "writable": true,
           "signer": true
         },
         {
@@ -166,6 +205,26 @@
               }
             ]
           }
+        },
+        {
+          "name": "voter_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "arg",
+                "path": "poll_id"
+              },
+              {
+                "kind": "account",
+                "path": "signer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -205,6 +264,19 @@
         136,
         153,
         111
+      ]
+    },
+    {
+      "name": "VoterRecord",
+      "discriminator": [
+        45,
+        117,
+        206,
+        107,
+        189,
+        246,
+        31,
+        194
       ]
     }
   ],
@@ -249,9 +321,69 @@
           {
             "name": "candidate_amount",
             "type": "u64"
+          },
+          {
+            "name": "poll_admin",
+            "type": "pubkey"
           }
         ]
       }
+    },
+    {
+      "name": "VoterRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "poll_id",
+            "type": "u64"
+          },
+          {
+            "name": "voter",
+            "type": "pubkey"
+          },
+          {
+            "name": "candidate_voted_for",
+            "type": "string"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "PollNotStarted",
+      "msg": "Poll has not started yet"
+    },
+    {
+      "code": 6001,
+      "name": "PollEnded",
+      "msg": "Poll has ended"
+    },
+    {
+      "code": 6002,
+      "name": "AlreadyVoted",
+      "msg": "You have already voted in this poll"
+    },
+    {
+      "code": 6003,
+      "name": "Unauthorized",
+      "msg": "You are not authorized to perform this action"
+    },
+    {
+      "code": 6004,
+      "name": "InsufficientBalance",
+      "msg": "Insufficient balance to vote. You need at least 1 SOL"
+    },
+    {
+      "code": 6005,
+      "name": "PollAlreadyEnded",
+      "msg": "Poll has already ended"
     }
   ]
 }

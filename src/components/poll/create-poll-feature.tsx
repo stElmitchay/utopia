@@ -12,6 +12,7 @@ import { PublicKey } from '@solana/web3.js'
 import { BN } from '@coral-xyz/anchor'
 import { useAnchorProvider } from '../solana/solana-provider'
 import { getVotingapplicationProgramId } from '@project/anchor'
+import { ConfirmationModal } from '../ui/confirmation-modal'
 
 export default function CreatePollFeature() {
   const { publicKey } = useWallet()
@@ -25,6 +26,7 @@ export default function CreatePollFeature() {
   const provider = useAnchorProvider()
   const programId = getVotingapplicationProgramId('devnet')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [showConfirmation, setShowConfirmation] = useState(false)
 
   const handlePollCreated = (details: any) => {
     setPollDetails(details)
@@ -50,9 +52,13 @@ export default function CreatePollFeature() {
     setCandidates(newCandidates)
   }
 
-  const handleFinish = async () => {
+  const handleFinishClick = () => {
     if (candidates.length < 2 || !pollDetails) return
-    
+    setShowConfirmation(true)
+  }
+
+  const handleConfirmCreate = async () => {
+    setShowConfirmation(false)
     setIsSubmitting(true)
     setErrorMessage(null)
     
@@ -178,6 +184,44 @@ export default function CreatePollFeature() {
   }
 
   return (
+    <>
+      <ConfirmationModal
+        isOpen={showConfirmation}
+        onClose={() => setShowConfirmation(false)}
+        onConfirm={handleConfirmCreate}
+        isLoading={isSubmitting}
+        title="Create Poll & Add Candidates?"
+        message={
+          <div className="space-y-3">
+            <div>
+              <p className="font-semibold text-[#A3E4D7] mb-1">Poll Details:</p>
+              <p className="text-sm">ID: {pollDetails?.pollId}</p>
+              <p className="text-sm">Description: {pollDetails?.description}</p>
+              <p className="text-sm">
+                Start: {pollDetails && new Date(pollDetails.pollStart * 1000).toLocaleString()}
+              </p>
+              <p className="text-sm">
+                End: {pollDetails && new Date(pollDetails.pollEnd * 1000).toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <p className="font-semibold text-[#A3E4D7] mb-1">Candidates ({candidates.length}):</p>
+              <ul className="text-sm space-y-1">
+                {candidates.map((c, i) => (
+                  <li key={i}>• {c}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-yellow-900/20 border border-yellow-600/40 rounded p-2 mt-3">
+              <p className="text-xs text-[#F5F5DC]/80">
+                ⚠️ <strong>Warning:</strong> This action is permanent. Poll and candidates cannot be edited or deleted after creation.
+              </p>
+            </div>
+          </div>
+        }
+        confirmText="Create Poll"
+        cancelText="Review Again"
+      />
     <div className="min-h-screen bg-[#2c5446] py-12">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-10">
@@ -317,7 +361,7 @@ export default function CreatePollFeature() {
                   Back
                 </button>
                 <button
-                  onClick={handleFinish}
+                  onClick={handleFinishClick}
                   className="px-5 py-2.5 bg-white text-[#0A1A14] text-sm font-medium rounded-lg hover:bg-[#A3E4D7] hover:text-[#0A1A14] transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A3E4D7] disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={candidates.length < 2 || isSubmitting}
                 >
@@ -336,5 +380,6 @@ export default function CreatePollFeature() {
         </div>
       </div>
     </div>
+    </>
   )
 } 

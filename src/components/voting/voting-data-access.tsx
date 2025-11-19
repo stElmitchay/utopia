@@ -1,28 +1,34 @@
 'use client'
 
 import { getVotingapplicationProgram, getVotingapplicationProgramId } from '@project/anchor'
-import { useConnection } from '@solana/wallet-adapter-react'
+import { usePrivy, useWallets } from '@privy-io/react-auth'
 import { BN } from '@coral-xyz/anchor'
-import { Cluster, LAMPORTS_PER_SOL, PublicKey, Transaction, SystemProgram } from '@solana/web3.js'
+import { Cluster, LAMPORTS_PER_SOL, PublicKey, Transaction, SystemProgram, Connection } from '@solana/web3.js'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useMemo, useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useCluster } from '../cluster/cluster-data-access'
-import { useAnchorProvider } from '../solana/solana-provider'
+import { usePrivyAnchorProvider } from '../solana/privy-anchor-provider'
 import { useTransactionToast } from '../ui/ui-layout'
 import * as anchor from '@coral-xyz/anchor'
 
 export function useVotingProgram() {
-  const { connection } = useConnection()
   const { cluster } = useCluster()
+  const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
   const transactionToast = useTransactionToast()
-  const provider = useAnchorProvider()
+  const provider = usePrivyAnchorProvider()
+  const { wallets } = useWallets()
+
+  const solanaWallet = useMemo(() => {
+    return wallets.find((wallet) => wallet.walletClientType === 'privy' && wallet.chainType === 'solana')
+  }, [wallets])
+
   const programId = useMemo(() => {
     const id = getVotingapplicationProgramId(cluster.network as Cluster)
     console.log('Initializing program with ID:', id.toString())
     return id
   }, [cluster])
-  
+
   const program = useMemo(() => {
     console.log('Creating program with provider:', provider.publicKey?.toString())
     const p = getVotingapplicationProgram(provider, programId)
@@ -62,10 +68,11 @@ export function useVotingProgram() {
   // Check SOL balance when wallet connects
   useEffect(() => {
     const checkBalance = async () => {
-      if (provider.publicKey) {
+      if (solanaWallet?.address) {
         try {
-          console.log('Checking SOL balance for wallet:', provider.publicKey.toString())
-          const lamports = await connection.getBalance(provider.publicKey)
+          const publicKey = new PublicKey(solanaWallet.address)
+          console.log('Checking SOL balance for wallet:', publicKey.toString())
+          const lamports = await connection.getBalance(publicKey)
           const balance = lamports / LAMPORTS_PER_SOL
           console.log('SOL balance:', balance)
           setSolBalance(balance)
@@ -79,7 +86,7 @@ export function useVotingProgram() {
     }
 
     checkBalance()
-  }, [provider.publicKey, connection])
+  }, [solanaWallet?.address, connection])
 
   // Function to get hidden polls from localStorage
   const getHiddenPolls = () => {
@@ -173,6 +180,9 @@ export function useVotingProgram() {
   const initializePoll = useMutation({
     mutationKey: ['voting', 'initializePoll', { cluster }],
     mutationFn: async ({ pollId, description, pollStart, pollEnd }: { pollId: number, description: string, pollStart: number, pollEnd: number }) => {
+      if (!solanaWallet?.address) throw new Error('Wallet not connected')
+
+      const userPublicKey = new PublicKey(solanaWallet.address)
       const [pollPda] = PublicKey.findProgramAddressSync(
         [Buffer.from(new BN(pollId).toArray('le', 8))],
         programId
@@ -186,7 +196,7 @@ export function useVotingProgram() {
           new BN(pollEnd)
         )
         .accounts({
-          signer: provider.publicKey,
+          signer: userPublicKey,
           poll: pollPda,
           systemProgram: anchor.web3.SystemProgram.programId
         } as any)
@@ -211,15 +221,19 @@ export function useVotingProgram() {
   const initializeCandidate = useMutation({
     mutationKey: ['voting', 'initializeCandidate', { cluster }],
     mutationFn: async ({ pollId, candidateName }: { pollId: number, candidateName: string }) => {
+      if (!solanaWallet?.address) throw new Error('Wallet not connected')
+
+      const userPublicKey = new PublicKey(solanaWallet.address)
+
       // Get poll account to check start time
       const [pollPda] = PublicKey.findProgramAddressSync(
         [Buffer.from(new BN(pollId).toArray('le', 8))],
         programId
       )
-      
+
       const pollAccount = await program.account.poll.fetch(pollPda)
       const now = Math.floor(Date.now() / 1000)
-      
+
       if (now >= pollAccount.pollStart.toNumber()) {
         throw new Error('Cannot add candidates after poll has started')
       }
@@ -238,8 +252,8 @@ export function useVotingProgram() {
           candidateName,
           new BN(pollId)
         )
-        .accounts({ 
-          signer: provider.publicKey,
+        .accounts({
+          signer: userPublicKey,
           poll: pollPda,
           candidate: candidatePda,
           systemProgram: new PublicKey("11111111111111111111111111111111")
@@ -261,19 +275,52 @@ export function useVotingProgram() {
     },
   })
 
+  // Close poll early (admin only)
+  const closePollEarly = useMutation({
+    mutationKey: ['closePollEarly'],
+    mutationFn: async ({ pollId }: { pollId: number }) => {
+      if (!solanaWallet?.address) throw new Error('Wallet not connected')
+
+      const userPublicKey = new PublicKey(solanaWallet.address)
+      const [pollPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from(new BN(pollId).toArray('le', 8))],
+        programId
+      )
+
+      return program.methods
+        .closePollEarly(new BN(pollId))
+        .accounts({
+          signer: userPublicKey,
+          poll: pollPda,
+        })
+        .rpc()
+    },
+    onSuccess: (signature) => {
+      transactionToast(signature)
+      toast.success('Poll closed successfully!')
+      return polls.refetch()
+    },
+    onError: (error: any) => {
+      console.error('Error closing poll:', error)
+      toast.error('Failed to close poll: ' + error.message)
+    },
+  })
+
   // Vote for a candidate with SOL balance check
   const vote = useMutation({
     mutationKey: ['vote'],
     mutationFn: async ({ pollId, candidateName }: { pollId: number; candidateName: string }) => {
-      if (!provider) throw new Error('Wallet not connected')
+      if (!solanaWallet?.address) throw new Error('Wallet not connected')
       if (!hasEnoughSol) throw new Error('Insufficient SOL balance')
+
+      const userPublicKey = new PublicKey(solanaWallet.address)
 
       // Clean up old localStorage entries
       cleanupOldVotes()
 
-      const transactionId = `${pollId}-${candidateName}-${provider.publicKey.toString()}`
+      const transactionId = `${pollId}-${candidateName}-${userPublicKey.toString()}`
       const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
-      
+
       // Check if this exact vote was processed recently (within last 5 minutes)
       const recentVoteTime = processedVotes[transactionId]
       if (recentVoteTime && (Date.now() - recentVoteTime) < 5 * 60 * 1000) {
@@ -293,24 +340,33 @@ export function useVotingProgram() {
         programId
       )
 
+      const [voterRecordPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(new BN(pollId).toArray('le', 8)),
+          userPublicKey.toBuffer()
+        ],
+        programId
+      )
+
       try {
         // Build the transaction instruction
         const instruction = await program.methods
           .vote(candidateName, new BN(pollId))
           .accounts({
-            signer: provider.publicKey,
+            signer: userPublicKey,
             poll: pollPda,
             candidate: candidatePda,
+            voterRecord: voterRecordPda,
             systemProgram: SystemProgram.programId
           })
           .instruction()
 
         // Get fresh blockhash to avoid reuse
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed')
-        
+
         // Create and send transaction with skipPreflight to avoid simulation issues
         const transaction = new Transaction({
-          feePayer: provider.publicKey,
+          feePayer: userPublicKey,
           blockhash,
           lastValidBlockHeight
         }).add(instruction)
@@ -381,8 +437,8 @@ export function useVotingProgram() {
 
   // Function to check if the current user is an admin (the creator of the poll)
   const isUserAdmin = (pollCreator: PublicKey | null) => {
-    if (!provider.publicKey || !pollCreator) return false
-    return provider.publicKey.toString() === pollCreator.toString()
+    if (!solanaWallet?.address || !pollCreator) return false
+    return solanaWallet.address === pollCreator.toString()
   }
 
   return {
@@ -393,6 +449,7 @@ export function useVotingProgram() {
     hidePoll,
     initializeCandidate,
     vote,
+    closePollEarly,
     getPollCandidates,
     solBalance,
     hasEnoughSol,

@@ -7,6 +7,9 @@ import { useVotingProgram } from './voting-data-access'
 import { ExplorerLink } from '../cluster/cluster-ui'
 import { ellipsify } from '../ui/ui-layout'
 import { toast } from 'react-hot-toast'
+import { ConfirmationModal } from '../ui/confirmation-modal'
+import { VoteReceipt } from '../ui/vote-receipt'
+import { PollResultsCard } from '../ui/poll-results-card'
 
 // Component to create a new poll
 export function CreatePollForm({ onPollCreated }: { onPollCreated?: (details: any) => void }) {
@@ -95,9 +98,33 @@ export function CreatePollForm({ onPollCreated }: { onPollCreated?: (details: an
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="bg-[#2c5446]/20 border border-[#2c5446] text-[#F5F5DC] px-4 py-3 rounded-lg text-sm">
-        <p className="font-medium mb-1">Important Notice:</p>
-        <p>Once a poll is created, it cannot be edited or deleted. All details including description, dates, and candidates will be permanently recorded on the blockchain.</p>
+      <div className="bg-yellow-900/20 border-2 border-yellow-600/40 text-[#F5F5DC] px-4 py-4 rounded-lg text-sm">
+        <div className="flex items-start">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-500 mr-3 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <p className="font-bold mb-2 text-yellow-400">⚠️ Critical: Read Before Proceeding</p>
+            <ul className="space-y-1.5 text-sm">
+              <li className="flex items-start">
+                <span className="mr-2">•</span>
+                <span><strong>Immutable:</strong> Once created, polls cannot be edited or deleted</span>
+              </li>
+              <li className="flex items-start">
+                <span className="mr-2">•</span>
+                <span><strong>Candidates Deadline:</strong> You MUST add all candidates in the next step. You cannot add candidates after the poll start time</span>
+              </li>
+              <li className="flex items-start">
+                <span className="mr-2">•</span>
+                <span><strong>Blockchain:</strong> All details are permanently recorded on-chain</span>
+              </li>
+              <li className="flex items-start">
+                <span className="mr-2">•</span>
+                <span><strong>Time Windows:</strong> Double-check your start and end times - they cannot be changed</span>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -248,11 +275,13 @@ export function AddCandidateForm({ pollId, onUpdate }: { pollId: number; onUpdat
 // Component to vote for a candidate
 export function VotingSection({
   pollId,
+  pollDescription,
   candidates,
   isActive,
   onUpdate
 }: {
   pollId: number;
+  pollDescription: string;
   candidates: any[];
   isActive: boolean;
   onUpdate?: () => void;
@@ -261,8 +290,16 @@ export function VotingSection({
   const { publicKey } = useWallet()
   const [voteError, setVoteError] = useState<string | null>(null)
   const [votingFor, setVotingFor] = useState<string | null>(null)
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [candidateToVoteFor, setCandidateToVoteFor] = useState<string | null>(null)
+  const [showReceipt, setShowReceipt] = useState(false)
+  const [voteReceiptData, setVoteReceiptData] = useState<{
+    candidateName: string
+    pollDescription: string
+    transactionSignature?: string
+  } | null>(null)
 
-  const handleVote = async (candidateName: string) => {
+  const handleVoteClick = (candidateName: string) => {
     if (!publicKey) {
       toast.error('Please connect your wallet to vote')
       return
@@ -278,26 +315,44 @@ export function VotingSection({
     const transactionId = `${pollId}-${candidateName}-${publicKey.toString()}`
     const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
     const recentVoteTime = processedVotes[transactionId]
-    
+
     // If there's a recent vote (within the last 5 minutes), prevent duplicate
     if (recentVoteTime && (Date.now() - recentVoteTime) < 5 * 60 * 1000) {
       toast.error('You have already voted for this candidate recently')
       return
     }
 
-    setVotingFor(candidateName)
+    // Show confirmation dialog
+    setCandidateToVoteFor(candidateName)
+    setShowConfirmation(true)
+  }
+
+  const handleConfirmVote = async () => {
+    if (!candidateToVoteFor) return
+
+    setShowConfirmation(false)
+    setVotingFor(candidateToVoteFor)
     setVoteError(null)
 
     try {
-      await vote.mutateAsync({
+      const signature = await vote.mutateAsync({
         pollId,
-        candidateName,
+        candidateName: candidateToVoteFor,
       })
 
       // Store the transaction ID locally to prevent duplicate submissions
+      const transactionId = `${pollId}-${candidateToVoteFor}-${publicKey.toString()}`
       const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
       processedVotes[transactionId] = Date.now()
       localStorage.setItem('processedVotes', JSON.stringify(processedVotes))
+
+      // Show receipt
+      setVoteReceiptData({
+        candidateName: candidateToVoteFor,
+        pollDescription: pollDescription,
+        transactionSignature: typeof signature === 'string' ? signature : undefined
+      })
+      setShowReceipt(true)
 
       if (onUpdate) onUpdate()
     } catch (error: any) {
@@ -308,8 +363,9 @@ export function VotingSection({
       if (errorMessage.includes('already been processed') || errorMessage.includes('This transaction has already been processed')) {
         // If the transaction was already processed, treat it as a success
         toast.success('Vote was successfully processed!')
-        
+
         // Store the transaction to prevent future duplicates
+        const transactionId = `${pollId}-${candidateToVoteFor}-${publicKey.toString()}`
         const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
         processedVotes[transactionId] = Date.now()
         localStorage.setItem('processedVotes', JSON.stringify(processedVotes))
@@ -322,12 +378,49 @@ export function VotingSection({
       }
     } finally {
       setVotingFor(null)
+      setCandidateToVoteFor(null)
     }
   }
 
   const totalVotes = candidates.reduce((sum, c) => sum + Number(c.account.candidateVotes), 0)
 
   return (
+    <>
+      <ConfirmationModal
+        isOpen={showConfirmation}
+        onClose={() => {
+          setShowConfirmation(false)
+          setCandidateToVoteFor(null)
+        }}
+        onConfirm={handleConfirmVote}
+        title="Confirm Your Vote"
+        message={
+          <div className="space-y-2">
+            <p>You are about to vote for:</p>
+            <p className="text-lg font-bold text-[#A3E4D7]">{candidateToVoteFor}</p>
+            <p className="text-xs mt-3 text-[#F5F5DC]/60">
+              ⚠️ This action is permanent and cannot be undone. Your vote will be recorded on the Solana blockchain.
+            </p>
+          </div>
+        }
+        confirmText="Cast Vote"
+        cancelText="Cancel"
+      />
+
+      {voteReceiptData && (
+        <VoteReceipt
+          isOpen={showReceipt}
+          onClose={() => {
+            setShowReceipt(false)
+            setVoteReceiptData(null)
+          }}
+          candidateName={voteReceiptData.candidateName}
+          pollDescription={voteReceiptData.pollDescription}
+          pollId={pollId}
+          transactionSignature={voteReceiptData.transactionSignature}
+        />
+      )}
+
     <div className="bg-[#2c5446] rounded-lg border border-[#2c5446] p-4">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-medium text-[#F5F5DC]">Cast your vote</h3>
@@ -388,7 +481,7 @@ export function VotingSection({
                 <div className="flex items-center gap-2">
                   {isActive && (
                     <button
-                      onClick={() => handleVote(candidateName)}
+                      onClick={() => handleVoteClick(candidateName)}
                       className="px-4 py-2 bg-white text-[#0A1A14] text-sm font-medium rounded-lg hover:bg-[#A3E4D7] hover:text-[#0A1A14] transition-colors focus:outline-none focus:ring-2 focus:ring-[#A3E4D7] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!canVote || vote.isPending || isVoting}
                       title={!publicKey
@@ -436,13 +529,14 @@ export function VotingSection({
         </div>
       </div>
     </div>
+    </>
   )
 }
 
 // Component to display a poll with its candidates
 export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultExpanded = false }: { poll: any; publicKey: PublicKey; onUpdate: () => void; isHidden?: boolean; defaultExpanded?: boolean }) {
   const { publicKey: walletPublicKey } = useWallet()
-  const { getPollCandidates, hidePoll, setPollActive, isPollActive, isUserAdmin } = useVotingProgram()
+  const { getPollCandidates, hidePoll, setPollActive, isPollActive, isUserAdmin, closePollEarly } = useVotingProgram()
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [candidates, setCandidates] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -451,6 +545,8 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
   const [isAdmin, setIsAdmin] = useState(false)
   const [isActive, setIsActive] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
+  const [showResults, setShowResults] = useState(false)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
 
   // Check if the current user is an admin (the creator of the poll)
   useEffect(() => {
@@ -501,8 +597,23 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
     onUpdate()
   }
 
+  const handleClosePollEarly = async () => {
+    try {
+      await closePollEarly.mutateAsync({ pollId: poll.pollId.toNumber() })
+      setShowCloseConfirm(false)
+      onUpdate()
+    } catch (error) {
+      console.error('Error closing poll:', error)
+    }
+  }
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleString()
+  }
+
+  const isPollEnded = () => {
+    const now = Math.floor(Date.now() / 1000)
+    return now > poll.pollEnd.toNumber()
   }
 
   const getTimeRemaining = (startTime: number, endTime: number) => {
@@ -567,7 +678,43 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
   // Default image for all polls
   const defaultImage = 'https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=800&q=80'
 
+  const totalVotes = candidates.reduce((sum, c) => sum + Number(c.account.candidateVotes), 0)
+
   return (
+    <>
+      {/* Results Modal */}
+      <PollResultsCard
+        isOpen={showResults}
+        onClose={() => setShowResults(false)}
+        pollId={poll.pollId.toNumber()}
+        pollDescription={poll.description}
+        candidates={candidates.map(c => ({
+          name: c.account.candidateName,
+          votes: Number(c.account.candidateVotes)
+        }))}
+        totalVotes={totalVotes}
+      />
+
+      {/* Close Poll Confirmation */}
+      <ConfirmationModal
+        isOpen={showCloseConfirm}
+        onClose={() => setShowCloseConfirm(false)}
+        onConfirm={handleClosePollEarly}
+        isLoading={closePollEarly.isPending}
+        title="Close Poll Early?"
+        message={
+          <div className="space-y-2">
+            <p>Are you sure you want to close this poll now?</p>
+            <p className="text-sm text-[#F5F5DC]/70">
+              This will immediately end voting and finalize the results. This action cannot be undone.
+            </p>
+          </div>
+        }
+        confirmText="Close Poll"
+        cancelText="Cancel"
+        confirmButtonClass="bg-red-500 text-white hover:bg-red-600"
+      />
+
     <div
       className={`rounded-xl shadow-lg overflow-hidden border border-[#F5F5DC]/20 mb-2 ${isExpanded ? '' : 'cursor-pointer hover:shadow-2xl transition-shadow'}`}
       onClick={() => !isExpanded && setIsExpanded(true)}
@@ -720,7 +867,43 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
                   </div>
                 ) : candidates.length > 0 ? (
                   <>
-                    <VotingSection pollId={poll.pollId.toNumber()} candidates={candidates} isActive={isActive} onUpdate={() => {}} />
+                    <VotingSection pollId={poll.pollId.toNumber()} pollDescription={poll.description} candidates={candidates} isActive={isActive} onUpdate={() => {}} />
+
+                    {/* Admin Actions */}
+                    {isAdmin && !isPollEnded() && (
+                      <div className="mt-4">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowCloseConfirm(true)
+                          }}
+                          className="w-full px-4 py-3 bg-red-500/20 border-2 border-red-500 text-red-400 text-sm font-medium rounded-lg hover:bg-red-500/30 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center justify-center gap-2"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          Close Poll Early
+                        </button>
+                      </div>
+                    )}
+
+                    {/* View Results Button for ended polls */}
+                    {isPollEnded() && (
+                      <div className="mt-4">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowResults(true)
+                          }}
+                          className="w-full px-4 py-3 bg-[#A3E4D7] text-[#0A1A14] text-sm font-bold rounded-lg hover:bg-[#A3E4D7]/90 transition-colors focus:outline-none focus:ring-2 focus:ring-[#A3E4D7] flex items-center justify-center gap-2"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          View Final Results & Share
+                        </button>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center py-4">
@@ -738,6 +921,7 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
         </div>
       )}
     </div>
+    </>
   )
 }
 
