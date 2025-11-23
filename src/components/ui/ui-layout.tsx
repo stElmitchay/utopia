@@ -8,7 +8,7 @@ import toast, {Toaster} from 'react-hot-toast'
 
 import {AccountChecker} from '../account/account-ui'
 import {ClusterChecker, ClusterUiSelect, ExplorerLink} from '../cluster/cluster-ui'
-import {WalletButton} from '../solana/solana-provider'
+import {PrivyWalletButton} from '../solana/privy-wallet-button'
 
 export function UiLayout({ children, links }: { children: ReactNode; links: { label: string; path: string }[] }) {
   const pathname = usePathname()
@@ -48,7 +48,7 @@ export function UiLayout({ children, links }: { children: ReactNode; links: { la
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <WalletButton />
+              <PrivyWalletButton />
               <div className="hidden sm:block">
                 <ClusterUiSelect />
               </div>

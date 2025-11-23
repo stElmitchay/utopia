@@ -1,20 +1,33 @@
 'use client'
 
-import { usePrivy, useWallets } from '@privy-io/react-auth'
+import { usePrivy } from '@privy-io/react-auth'
+import { useWallets } from '@privy-io/react-auth/solana'
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react'
 import { ellipsify } from '../ui/ui-layout'
 import { motion } from 'framer-motion'
 
 export function PrivyWalletButton() {
   const { ready, authenticated, user, login, logout } = usePrivy()
-  const { wallets } = useWallets()
+  const { ready: walletsReady, wallets } = useWallets()
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Get the Solana embedded wallet
   const solanaWallet = useMemo(() => {
-    return wallets.find((wallet) => wallet.walletClientType === 'privy' && wallet.chainType === 'solana')
-  }, [wallets])
+    console.log('===== PRIVY WALLET DEBUG =====')
+    console.log('Privy ready:', ready)
+    console.log('Authenticated:', authenticated)
+    console.log('Wallets ready:', walletsReady)
+    console.log('Wallets count:', wallets.length)
+    console.log('All wallets:', wallets)
+    console.log('User:', user)
+    console.log('==============================')
+
+    // For Solana wallets from useWallets hook, just get the first one (should be embedded wallet)
+    const wallet = wallets[0]
+    console.log('Selected wallet:', wallet)
+    return wallet
+  }, [ready, authenticated, walletsReady, wallets, user])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

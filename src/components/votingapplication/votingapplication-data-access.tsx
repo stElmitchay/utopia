@@ -1,20 +1,19 @@
 'use client'
 
 import { getVotingapplicationProgram, getVotingapplicationProgramId } from '@project/anchor'
-import { useConnection } from '@solana/wallet-adapter-react'
-import { Cluster, Keypair, PublicKey } from '@solana/web3.js'
+import { Cluster, Keypair, PublicKey, Connection } from '@solana/web3.js'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { useCluster } from '../cluster/cluster-data-access'
-import { useAnchorProvider } from '../solana/solana-provider'
+import { usePrivyAnchorProvider } from '../solana/privy-anchor-provider'
 import { useTransactionToast } from '../ui/ui-layout'
 
 export function useVotingapplicationProgram() {
-  const { connection } = useConnection()
   const { cluster } = useCluster()
+  const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
   const transactionToast = useTransactionToast()
-  const provider = useAnchorProvider()
+  const provider = usePrivyAnchorProvider()
   const programId = useMemo(() => getVotingapplicationProgramId(cluster.network as Cluster), [cluster])
   const program = useMemo(() => getVotingapplicationProgram(provider, programId), [provider, programId])
 

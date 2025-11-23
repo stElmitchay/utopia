@@ -1,7 +1,8 @@
 'use client'
 
 import {TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID} from '@solana/spl-token'
-import {useConnection, useWallet} from '@solana/wallet-adapter-react'
+import { usePrivy } from '@privy-io/react-auth'
+import { useWallets } from '@privy-io/react-auth/solana'
 import {
   Connection,
   LAMPORTS_PER_SOL,
@@ -16,10 +17,13 @@ import toast from 'react-hot-toast'
 import {useTransactionToast} from '../ui/ui-layout'
 import { BN } from '@coral-xyz/anchor'
 import * as spl from '@solana/spl-token'
-import { useAnchorProvider } from '../solana/solana-provider'
+import { usePrivyAnchorProvider } from '../solana/privy-anchor-provider'
+import { useCluster } from '../cluster/cluster-data-access'
+import { useMemo } from 'react'
 
 export function useGetBalance({ address }: { address: PublicKey }) {
-  const { connection } = useConnection()
+  const { cluster } = useCluster()
+  const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
 
   return useQuery({
     queryKey: ['get-balance', { endpoint: connection.rpcEndpoint, address }],
@@ -28,7 +32,8 @@ export function useGetBalance({ address }: { address: PublicKey }) {
 }
 
 export function useGetSignatures({ address }: { address: PublicKey }) {
-  const { connection } = useConnection()
+  const { cluster } = useCluster()
+  const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
 
   return useQuery({
     queryKey: ['get-signatures', { endpoint: connection.rpcEndpoint, address }],
@@ -37,7 +42,8 @@ export function useGetSignatures({ address }: { address: PublicKey }) {
 }
 
 export function useGetTokenAccounts({ address }: { address: PublicKey }) {
-  const { connection } = useConnection()
+  const { cluster } = useCluster()
+  const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
 
   return useQuery({
     queryKey: ['get-token-accounts', { endpoint: connection.rpcEndpoint, address }],
@@ -56,9 +62,10 @@ export function useGetTokenAccounts({ address }: { address: PublicKey }) {
 }
 
 export function useTransferSol({ address }: { address: PublicKey }) {
-  const { connection } = useConnection()
+  const { cluster } = useCluster()
+  const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
   const transactionToast = useTransactionToast()
-  const wallet = useWallet()
+  const provider = usePrivyAnchorProvider()
   const client = useQueryClient()
 
   return useMutation({
@@ -73,8 +80,8 @@ export function useTransferSol({ address }: { address: PublicKey }) {
           connection,
         })
 
-        // Send transaction and await for signature
-        signature = await wallet.sendTransaction(transaction, connection)
+        // Send transaction and await for signature using Privy provider
+        signature = await provider.sendAndConfirm(transaction)
 
         // Send transaction and await for signature
         await connection.confirmTransaction({ signature, ...latestBlockhash }, 'confirmed')
@@ -107,7 +114,8 @@ export function useTransferSol({ address }: { address: PublicKey }) {
 }
 
 export function useRequestAirdrop({ address }: { address: PublicKey }) {
-  const { connection } = useConnection()
+  const { cluster } = useCluster()
+  const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
   const transactionToast = useTransactionToast()
   const client = useQueryClient()
 
@@ -179,8 +187,15 @@ async function createTransaction({
 }
 
 export function useAnchorAccount() {
-  const provider = useAnchorProvider()
-  const { publicKey, sendTransaction } = useWallet()
+  const provider = usePrivyAnchorProvider()
+  const { authenticated } = usePrivy()
+  const { wallets } = useWallets()
+  const solanaWallet = useMemo(() => wallets[0], [wallets])
+
+  const publicKey = useMemo(() => {
+    if (!authenticated || !solanaWallet?.address) return null
+    return new PublicKey(solanaWallet.address)
+  }, [authenticated, solanaWallet])
 
   if (!provider || !publicKey) {
     return {

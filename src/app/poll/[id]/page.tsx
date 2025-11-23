@@ -1,14 +1,11 @@
 'use client'
 
-import { useWallet } from '@solana/wallet-adapter-react'
-import { PublicKey } from '@solana/web3.js'
 import { useVotingProgram } from '@/components/voting/voting-data-access'
 import { PollCard } from '@/components/voting/voting-ui'
 import { useParams } from 'next/navigation'
 
 export default function PollPage() {
   const { id } = useParams()
-  const { publicKey } = useWallet()
   const { polls } = useVotingProgram()
 
   if (polls.isLoading) {
@@ -29,7 +26,7 @@ export default function PollPage() {
     )
   }
 
-  const poll = polls.data?.find(p => p.account.pollId.toString() === id)
+  const poll = polls.data?.find((p: any) => p.account.pollId.toString() === id)
 
   if (!poll) {
     return (

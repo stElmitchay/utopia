@@ -1,6 +1,7 @@
 'use client'
 
-import { usePrivy, useWallets } from '@privy-io/react-auth'
+import { usePrivy } from '@privy-io/react-auth'
+import { useWallets } from '@privy-io/react-auth/solana'
 import { PrivyWalletButton } from '../solana/privy-wallet-button'
 // Comment out HiddenPollsList import
 import { PollsList /* HiddenPollsList */ } from './voting-ui'
@@ -9,12 +10,18 @@ import Link from 'next/link'
 import { useState, useMemo } from 'react'
 
 export function VotingFeature() {
-  const { authenticated } = usePrivy()
-  const { wallets } = useWallets()
+  const { ready, authenticated } = usePrivy()
+  const { ready: walletsReady, wallets } = useWallets()
 
   const solanaWallet = useMemo(() => {
-    return wallets.find((wallet) => wallet.walletClientType === 'privy' && wallet.chainType === 'solana')
-  }, [wallets])
+    console.log('[VotingFeature] Debug:', { ready, authenticated, walletsReady, walletsCount: wallets.length })
+    if (!ready || !authenticated || !walletsReady || wallets.length === 0) {
+      console.log('[VotingFeature] Wallet not ready yet')
+      return null
+    }
+    console.log('[VotingFeature] Wallet found:', wallets[0])
+    return wallets[0] // First wallet is the embedded Solana wallet
+  }, [ready, authenticated, walletsReady, wallets])
   // Add filter state
   const [filter, setFilter] = useState<'active' | 'future' | 'past'>('active')
   const [view, setView] = useState<'all' | 'dashboard'>('all')

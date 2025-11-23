@@ -1,9 +1,8 @@
 'use client'
 
-import { useConnection } from '@solana/wallet-adapter-react'
 import { IconTrash } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
-import { ReactNode, useState, useRef, useEffect } from 'react'
+import { ReactNode, useState, useRef, useEffect, useMemo } from 'react'
 import { AppModal } from '../ui/ui-layout'
 import { ClusterNetwork, useCluster } from './cluster-data-access'
 import { Connection } from '@solana/web3.js'
@@ -24,21 +23,15 @@ export function ExplorerLink({ path, label, className }: { path: string; label: 
 
 export function ClusterChecker({ children }: { children: ReactNode }) {
   const { cluster } = useCluster()
-  const { connection } = useConnection()
+  const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
 
   const query = useQuery({
-    queryKey: ['version', { cluster, endpoint: connection?.rpcEndpoint }],
-    queryFn: () => {
-      if (!connection) {
-        throw new Error('Connection not available')
-      }
-      return connection.getVersion()
-    },
+    queryKey: ['version', { cluster, endpoint: connection.rpcEndpoint }],
+    queryFn: () => connection.getVersion(),
     retry: 1,
-    enabled: !!connection,
   })
-  
-  if (query.isLoading || !connection) {
+
+  if (query.isLoading) {
     return null
   }
   

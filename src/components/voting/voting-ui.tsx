@@ -1,7 +1,8 @@
 'use client'
 
-import { useWallet } from '@solana/wallet-adapter-react'
-import { useState, useEffect, useCallback } from 'react'
+import { usePrivy } from '@privy-io/react-auth'
+import { useWallets } from '@privy-io/react-auth/solana'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { PublicKey } from '@solana/web3.js'
 import { useVotingProgram } from './voting-data-access'
 import { ExplorerLink } from '../cluster/cluster-ui'
@@ -287,7 +288,15 @@ export function VotingSection({
   onUpdate?: () => void;
 }) {
   const { vote, REQUIRED_SOL_AMOUNT, solBalance, hasEnoughSol } = useVotingProgram()
-  const { publicKey } = useWallet()
+  const { ready, authenticated } = usePrivy()
+  const { ready: walletsReady, wallets } = useWallets()
+
+  const solanaWallet = useMemo(() => {
+    console.log('[VotingSection] Debug:', { ready, authenticated, walletsReady, walletsCount: wallets.length })
+    if (!ready || !authenticated || !walletsReady || wallets.length === 0) return null
+    return wallets[0] // First wallet is the embedded Solana wallet
+  }, [ready, authenticated, walletsReady, wallets])
+
   const [voteError, setVoteError] = useState<string | null>(null)
   const [votingFor, setVotingFor] = useState<string | null>(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
@@ -300,8 +309,8 @@ export function VotingSection({
   } | null>(null)
 
   const handleVoteClick = (candidateName: string) => {
-    if (!publicKey) {
-      toast.error('Please connect your wallet to vote')
+    if (!authenticated || !solanaWallet) {
+      toast.error('Please login with email to vote')
       return
     }
 
@@ -312,7 +321,7 @@ export function VotingSection({
     }
 
     // Check for recent transactions in localStorage before attempting to vote
-    const transactionId = `${pollId}-${candidateName}-${publicKey.toString()}`
+    const transactionId = `${pollId}-${candidateName}-${solanaWallet.address}`
     const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
     const recentVoteTime = processedVotes[transactionId]
 
@@ -341,7 +350,7 @@ export function VotingSection({
       })
 
       // Store the transaction ID locally to prevent duplicate submissions
-      const transactionId = `${pollId}-${candidateToVoteFor}-${publicKey.toString()}`
+      const transactionId = `${pollId}-${candidateToVoteFor}-${solanaWallet.address}`
       const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
       processedVotes[transactionId] = Date.now()
       localStorage.setItem('processedVotes', JSON.stringify(processedVotes))
@@ -365,7 +374,7 @@ export function VotingSection({
         toast.success('Vote was successfully processed!')
 
         // Store the transaction to prevent future duplicates
-        const transactionId = `${pollId}-${candidateToVoteFor}-${publicKey.toString()}`
+        const transactionId = `${pollId}-${candidateToVoteFor}-${solanaWallet.address}`
         const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
         processedVotes[transactionId] = Date.now()
         localStorage.setItem('processedVotes', JSON.stringify(processedVotes))
@@ -434,7 +443,7 @@ export function VotingSection({
         </div>
       </div>
 
-      {publicKey && (
+      {authenticated && solanaWallet && (
         <div className="mb-4">
           {solBalance !== null && !hasEnoughSol && (
             <div className="p-3 rounded-lg text-sm bg-[#2c5446] text-[#F5F5DC]/70 flex justify-between items-center">
@@ -457,9 +466,9 @@ export function VotingSection({
         </div>
       )}
 
-      {!publicKey && isActive && (
+      {(!authenticated || !solanaWallet) && isActive && (
         <div className="bg-[#2c5446] text-[#F5F5DC]/70 p-3 mb-4 rounded-lg text-sm">
-          Connect your wallet to vote for a candidate
+          Login with email to vote for a candidate
         </div>
       )}
 
@@ -471,7 +480,7 @@ export function VotingSection({
             ? Math.round((voteCount / totalVotes) * 100)
             : 0
 
-          const canVote = isActive && publicKey && (!voteError) && (solBalance !== null && hasEnoughSol)
+          const canVote = isActive && authenticated && solanaWallet && (!voteError) && (solBalance !== null && hasEnoughSol)
           const isVoting = votingFor === candidateName
 
           return (
@@ -484,8 +493,8 @@ export function VotingSection({
                       onClick={() => handleVoteClick(candidateName)}
                       className="px-4 py-2 bg-white text-[#0A1A14] text-sm font-medium rounded-lg hover:bg-[#A3E4D7] hover:text-[#0A1A14] transition-colors focus:outline-none focus:ring-2 focus:ring-[#A3E4D7] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!canVote || vote.isPending || isVoting}
-                      title={!publicKey
-                        ? 'Connect your wallet to vote'
+                      title={!authenticated || !solanaWallet
+                        ? 'Login with email to vote'
                         : !isActive
                         ? 'Poll is not active'
                         : voteError
@@ -535,7 +544,15 @@ export function VotingSection({
 
 // Component to display a poll with its candidates
 export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultExpanded = false }: { poll: any; publicKey: PublicKey; onUpdate: () => void; isHidden?: boolean; defaultExpanded?: boolean }) {
-  const { publicKey: walletPublicKey } = useWallet()
+  const { ready, authenticated } = usePrivy()
+  const { ready: walletsReady, wallets } = useWallets()
+
+  const solanaWallet = useMemo(() => {
+    console.log('[PollCard] Debug:', { ready, authenticated, walletsReady, walletsCount: wallets.length })
+    if (!ready || !authenticated || !walletsReady || wallets.length === 0) return null
+    return wallets[0] // First wallet is the embedded Solana wallet
+  }, [ready, authenticated, walletsReady, wallets])
+
   const { getPollCandidates, hidePoll, setPollActive, isPollActive, isUserAdmin, closePollEarly } = useVotingProgram()
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [candidates, setCandidates] = useState<any[]>([])

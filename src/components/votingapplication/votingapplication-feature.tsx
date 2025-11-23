@@ -1,21 +1,26 @@
 'use client'
 
-import { useWallet } from '@solana/wallet-adapter-react'
-import { WalletButton } from '../solana/solana-provider'
+import { usePrivy } from '@privy-io/react-auth'
+import { useWallets } from '@privy-io/react-auth/solana'
+import { PrivyWalletButton } from '../solana/privy-wallet-button'
 import { AppHero, ellipsify } from '../ui/ui-layout'
 import { ExplorerLink } from '../cluster/cluster-ui'
 import { useVotingapplicationProgram } from './votingapplication-data-access'
 import { VotingapplicationCreate, VotingapplicationList } from './votingapplication-ui'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 export default function VotingapplicationFeature() {
-  const { publicKey } = useWallet()
+  const { authenticated } = usePrivy()
+  const { wallets } = useWallets()
   const { programId } = useVotingapplicationProgram()
   const [isLoading, setIsLoading] = useState(true)
 
+  const solanaWallet = useMemo(() => {
+    console.log('[VotingApplicationFeature] Wallets:', wallets)
+    return wallets[0] // First wallet is the embedded Solana wallet
+  }, [wallets])
 
-
-  return publicKey ? (
+  return authenticated && solanaWallet ? (
     <div>
       <AppHero
         title="Votingapplication"
@@ -34,7 +39,7 @@ export default function VotingapplicationFeature() {
     <div className="max-w-4xl mx-auto">
       <div className="hero py-[64px]">
         <div className="hero-content text-center">
-          <WalletButton />
+          <PrivyWalletButton />
         </div>
       </div>
     </div>

@@ -1,7 +1,8 @@
 'use client'
 
 import { AnchorProvider } from '@coral-xyz/anchor'
-import { usePrivy, useWallets } from '@privy-io/react-auth'
+import { usePrivy } from '@privy-io/react-auth'
+import { useWallets } from '@privy-io/react-auth/solana'
 import { Connection, PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js'
 import { useMemo } from 'react'
 import { useCluster } from '../cluster/cluster-data-access'
@@ -9,13 +10,15 @@ import { useCluster } from '../cluster/cluster-data-access'
 export function usePrivyAnchorProvider() {
   const { cluster } = useCluster()
   const { ready, authenticated } = usePrivy()
-  const { wallets } = useWallets()
+  const { ready: walletsReady, wallets } = useWallets()
 
   const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
 
+  // Get the first Solana wallet (embedded wallet after email login)
   const solanaWallet = useMemo(() => {
-    return wallets.find((wallet) => wallet.walletClientType === 'privy' && wallet.chainType === 'solana')
-  }, [wallets])
+    console.log('[PrivyAnchorProvider] Ready:', ready, 'Auth:', authenticated, 'WalletsReady:', walletsReady, 'Count:', wallets.length)
+    return wallets[0]
+  }, [ready, authenticated, walletsReady, wallets])
 
   const wallet = useMemo(() => {
     if (!ready || !authenticated || !solanaWallet) {

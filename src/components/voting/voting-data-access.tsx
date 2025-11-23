@@ -1,7 +1,8 @@
 'use client'
 
 import { getVotingapplicationProgram, getVotingapplicationProgramId } from '@project/anchor'
-import { usePrivy, useWallets } from '@privy-io/react-auth'
+import { usePrivy } from '@privy-io/react-auth'
+import { useWallets } from '@privy-io/react-auth/solana'
 import { BN } from '@coral-xyz/anchor'
 import { Cluster, LAMPORTS_PER_SOL, PublicKey, Transaction, SystemProgram, Connection } from '@solana/web3.js'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -17,11 +18,17 @@ export function useVotingProgram() {
   const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
   const transactionToast = useTransactionToast()
   const provider = usePrivyAnchorProvider()
-  const { wallets } = useWallets()
+  const { ready: walletsReady, wallets } = useWallets()
 
   const solanaWallet = useMemo(() => {
-    return wallets.find((wallet) => wallet.walletClientType === 'privy' && wallet.chainType === 'solana')
-  }, [wallets])
+    console.log('[VotingDataAccess] Debug:', { walletsReady, walletsCount: wallets.length })
+    if (!walletsReady || wallets.length === 0) {
+      console.log('[VotingDataAccess] Wallet not ready yet')
+      return null
+    }
+    console.log('[VotingDataAccess] Wallet found:', wallets[0])
+    return wallets[0] // First wallet is the embedded Solana wallet
+  }, [walletsReady, wallets])
 
   const programId = useMemo(() => {
     const id = getVotingapplicationProgramId(cluster.network as Cluster)

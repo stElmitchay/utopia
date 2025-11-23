@@ -4,13 +4,21 @@ import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import Image from 'next/image'
-import { useWallet } from '@solana/wallet-adapter-react'
-import { WalletButton } from '../solana/solana-provider'
+import { usePrivy } from '@privy-io/react-auth'
+import { useWallets } from '@privy-io/react-auth/solana'
+import { PrivyWalletButton } from '../solana/privy-wallet-button'
 import Link from 'next/link'
+import { useMemo } from 'react'
 
 const LandingPage = () => {
   const router = useRouter()
-  const { publicKey } = useWallet()
+  const { authenticated } = usePrivy()
+  const { wallets } = useWallets()
+
+  const solanaWallet = useMemo(() => {
+    console.log('[LandingPage] Wallets:', wallets)
+    return wallets[0] // First wallet is the embedded Solana wallet
+  }, [wallets])
 
   const fadeIn = {
     initial: { opacity: 0, y: 20 },
@@ -42,7 +50,7 @@ const LandingPage = () => {
               Make every vote count, literally.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 items-center justify-center lg:justify-start">
-              {publicKey ? (
+              {authenticated && solanaWallet ? (
                 <motion.button
                   whileHover={cardHover}
                   onClick={() => router.push('/create-poll')}
@@ -52,7 +60,7 @@ const LandingPage = () => {
                 </motion.button>
               ) : (
                 <div className="flex flex-col sm:flex-row gap-4 items-center w-full sm:w-auto">
-                  <WalletButton />
+                  <PrivyWalletButton />
                 </div>
               )}
             </div>

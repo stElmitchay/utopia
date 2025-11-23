@@ -1,21 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { useWallet } from '@solana/wallet-adapter-react'
-import { WalletButton } from '../solana/solana-provider'
+import { usePrivy } from '@privy-io/react-auth'
+import { useWallets } from '@privy-io/react-auth/solana'
+import { PrivyWalletButton } from '../solana/privy-wallet-button'
 import { CreatePollForm } from '../voting/voting-ui'
 import { useVotingProgram } from '../voting/voting-data-access'
 import toast from 'react-hot-toast'
 import * as anchor from '@coral-xyz/anchor'
 import { PublicKey } from '@solana/web3.js'
 import { BN } from '@coral-xyz/anchor'
-import { useAnchorProvider } from '../solana/solana-provider'
+import { usePrivyAnchorProvider } from '../solana/privy-anchor-provider'
 import { getVotingapplicationProgramId } from '@project/anchor'
 import { ConfirmationModal } from '../ui/confirmation-modal'
 
 export default function CreatePollFeature() {
-  const { publicKey } = useWallet()
+  const { ready, authenticated } = usePrivy()
+  const { ready: walletsReady, wallets } = useWallets()
+
+  const solanaWallet = useMemo(() => {
+    console.log('[CreatePoll] Debug:', { ready, authenticated, walletsReady, walletsCount: wallets.length })
+    if (!ready || !authenticated || !walletsReady || wallets.length === 0) {
+      console.log('[CreatePoll] Wallet not ready yet')
+      return null
+    }
+    console.log('[CreatePoll] Wallet found:', wallets[0])
+    return wallets[0] // First wallet is the embedded Solana wallet
+  }, [ready, authenticated, walletsReady, wallets])
   const router = useRouter()
   const [stage, setStage] = useState(1) // 1: Poll details, 2: Add candidates
   const [pollDetails, setPollDetails] = useState<any>(null)
@@ -23,7 +35,7 @@ export default function CreatePollFeature() {
   const [newCandidate, setNewCandidate] = useState('')
   const { program } = useVotingProgram()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const provider = useAnchorProvider()
+  const provider = usePrivyAnchorProvider()
   const programId = getVotingapplicationProgramId('devnet')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
@@ -154,7 +166,7 @@ export default function CreatePollFeature() {
     }
   }
 
-  if (!publicKey) {
+  if (!authenticated || !solanaWallet) {
     return (
       <div className="min-h-screen bg-[#2c5446] flex items-center justify-center">
         <div className="max-w-md px-6">
@@ -168,13 +180,13 @@ export default function CreatePollFeature() {
               <h1 className="text-2xl font-bold text-[#F5F5DC] mb-3">Create a New Poll</h1>
               <div className="w-16 h-0.5 bg-[#2c5446] mx-auto mb-5"></div>
               <p className="text-[#F5F5DC] mb-8 px-4">
-                Connect your wallet to create a new poll on the Solana blockchain.
+                Login with your email to create a new poll on the Solana blockchain.
               </p>
               <div className="mb-3">
-                <WalletButton />
+                <PrivyWalletButton />
               </div>
               <p className="text-sm text-[#F5F5DC]/70">
-                Connect your wallet to get started
+                Login with your email to get started
               </p>
             </div>
           </div>

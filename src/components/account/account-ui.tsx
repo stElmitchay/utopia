@@ -1,6 +1,7 @@
 'use client'
 
-import { useWallet } from '@solana/wallet-adapter-react'
+import { usePrivy } from '@privy-io/react-auth'
+import { useWallets } from '@privy-io/react-auth/solana'
 import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js'
 import { IconRefresh } from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -28,7 +29,15 @@ export function AccountBalance({ address }: { address: PublicKey }) {
   )
 }
 export function AccountChecker() {
-  const { publicKey } = useWallet()
+  const { authenticated } = usePrivy()
+  const { wallets } = useWallets()
+  const solanaWallet = useMemo(() => wallets[0], [wallets])
+
+  const publicKey = useMemo(() => {
+    if (!authenticated || !solanaWallet?.address) return null
+    return new PublicKey(solanaWallet.address)
+  }, [authenticated, solanaWallet])
+
   if (!publicKey) {
     return null
   }
@@ -61,11 +70,18 @@ export function AccountBalanceCheck({ address }: { address: PublicKey }) {
 }
 
 export function AccountButtons({ address }: { address: PublicKey }) {
-  const wallet = useWallet()
+  const { authenticated } = usePrivy()
+  const { wallets } = useWallets()
+  const solanaWallet = useMemo(() => wallets[0], [wallets])
   const { cluster } = useCluster()
   const [showAirdropModal, setShowAirdropModal] = useState(false)
   const [showReceiveModal, setShowReceiveModal] = useState(false)
   const [showSendModal, setShowSendModal] = useState(false)
+
+  const isOwnWallet = useMemo(() => {
+    if (!authenticated || !solanaWallet?.address) return false
+    return solanaWallet.address === address.toString()
+  }, [authenticated, solanaWallet, address])
 
   return (
     <div>
@@ -81,7 +97,7 @@ export function AccountButtons({ address }: { address: PublicKey }) {
           Airdrop
         </button>
         <button
-          disabled={wallet.publicKey?.toString() !== address.toString()}
+          disabled={!isOwnWallet}
           className="btn btn-xs lg:btn-md btn-outline"
           onClick={() => setShowSendModal(true)}
         >
@@ -304,12 +320,14 @@ function ModalAirdrop({ hide, show, address }: { hide: () => void; show: boolean
 }
 
 function ModalSend({ hide, show, address }: { hide: () => void; show: boolean; address: PublicKey }) {
-  const wallet = useWallet()
+  const { authenticated } = usePrivy()
+  const { wallets } = useWallets()
+  const solanaWallet = useMemo(() => wallets[0], [wallets])
   const mutation = useTransferSol({ address })
   const [destination, setDestination] = useState('')
   const [amount, setAmount] = useState('1')
 
-  if (!address || !wallet.sendTransaction) {
+  if (!address || !authenticated || !solanaWallet) {
     return <div>Wallet not connected</div>
   }
 
