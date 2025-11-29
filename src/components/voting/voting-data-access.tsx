@@ -1,10 +1,17 @@
 'use client'
 
 import { getVotingapplicationProgram, getVotingapplicationProgramId } from '@project/anchor'
-import { usePrivy } from '@privy-io/react-auth'
-import { useWallets } from '@privy-io/react-auth/solana'
 import { BN } from '@coral-xyz/anchor'
-import { Cluster, LAMPORTS_PER_SOL, PublicKey, Transaction, SystemProgram, Connection } from '@solana/web3.js'
+import {
+  Cluster,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  Transaction,
+  SystemProgram,
+  TransactionInstruction,
+  TransactionMessage,
+  VersionedTransaction
+} from '@solana/web3.js'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useMemo, useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
@@ -15,33 +22,24 @@ import * as anchor from '@coral-xyz/anchor'
 
 export function useVotingProgram() {
   const { cluster } = useCluster()
-  const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
   const transactionToast = useTransactionToast()
-  const provider = usePrivyAnchorProvider()
-  const { ready: walletsReady, wallets } = useWallets()
-
-  const solanaWallet = useMemo(() => {
-    console.log('[VotingDataAccess] Debug:', { walletsReady, walletsCount: wallets.length })
-    if (!walletsReady || wallets.length === 0) {
-      console.log('[VotingDataAccess] Wallet not ready yet')
-      return null
-    }
-    console.log('[VotingDataAccess] Wallet found:', wallets[0])
-    return wallets[0] // First wallet is the embedded Solana wallet
-  }, [walletsReady, wallets])
+  const {
+    provider,
+    connection,
+    publicKey: walletPublicKey,
+    solanaWallet,
+    signAndSendTransaction,
+    isReady: walletReady
+  } = usePrivyAnchorProvider()
 
   const programId = useMemo(() => {
-    const id = getVotingapplicationProgramId(cluster.network as Cluster)
-    console.log('Initializing program with ID:', id.toString())
-    return id
+    return getVotingapplicationProgramId(cluster.network as Cluster)
   }, [cluster])
 
+  // Only create program when wallet is ready to avoid using dummy provider
   const program = useMemo(() => {
-    console.log('Creating program with provider:', provider.publicKey?.toString())
-    const p = getVotingapplicationProgram(provider, programId)
-    console.log('Program created successfully')
-    return p
-  }, [provider, programId])
+    return getVotingapplicationProgram(provider, programId)
+  }, [provider, programId, walletReady]) // Added walletReady to dependencies to force re-creation when wallet connects
 
   // Required SOL amount to vote (in SOL)
   const REQUIRED_SOL_AMOUNT = 1
@@ -78,10 +76,8 @@ export function useVotingProgram() {
       if (solanaWallet?.address) {
         try {
           const publicKey = new PublicKey(solanaWallet.address)
-          console.log('Checking SOL balance for wallet:', publicKey.toString())
           const lamports = await connection.getBalance(publicKey)
           const balance = lamports / LAMPORTS_PER_SOL
-          console.log('SOL balance:', balance)
           setSolBalance(balance)
           setHasEnoughSol(balance >= REQUIRED_SOL_AMOUNT)
         } catch (error) {
@@ -147,9 +143,9 @@ export function useVotingProgram() {
     queryKey: ['voting', 'hiddenPolls', { cluster }],
     queryFn: async () => {
       try {
-        const accounts = await program.account.poll.all()
+        const accounts = await (program.account as any).poll.all()
         const hiddenPolls = getHiddenPolls()
-        return accounts.filter(account => hiddenPolls.includes(account.account.pollId.toNumber()))
+        return accounts.filter((account: any) => hiddenPolls.includes(account.account.pollId.toNumber()))
       } catch (error) {
         console.error('Error fetching hidden polls:', error)
         return []
@@ -162,10 +158,9 @@ export function useVotingProgram() {
     queryKey: ['voting', 'polls', { cluster }],
     queryFn: async () => {
       try {
-        console.log('Fetching polls...')
-        const accounts = await program.account.poll.all()
+        const accounts = await (program.account as any).poll.all()
         const hiddenPolls = getHiddenPolls()
-        return accounts.filter(account => !hiddenPolls.includes(account.account.pollId.toNumber()))
+        return accounts.filter((account: any) => !hiddenPolls.includes(account.account.pollId.toNumber()))
       } catch (error) {
         console.error('Error fetching polls:', error)
         return []
@@ -179,7 +174,6 @@ export function useVotingProgram() {
 
   // Function to manually refetch polls
   const refetchPolls = () => {
-    console.log('Manually refetching polls...')
     polls.refetch()
   }
 
@@ -187,27 +181,74 @@ export function useVotingProgram() {
   const initializePoll = useMutation({
     mutationKey: ['voting', 'initializePoll', { cluster }],
     mutationFn: async ({ pollId, description, pollStart, pollEnd }: { pollId: number, description: string, pollStart: number, pollEnd: number }) => {
-      if (!solanaWallet?.address) throw new Error('Wallet not connected')
+      if (!solanaWallet?.address || !walletPublicKey) throw new Error('Wallet not connected')
 
-      const userPublicKey = new PublicKey(solanaWallet.address)
       const [pollPda] = PublicKey.findProgramAddressSync(
         [Buffer.from(new BN(pollId).toArray('le', 8))],
         programId
       )
 
-      return program.methods
-        .initializePoll(
-          new BN(pollId),
-          description,
-          new BN(pollStart),
-          new BN(pollEnd)
-        )
-        .accounts({
-          signer: userPublicKey,
-          poll: pollPda,
-          systemProgram: anchor.web3.SystemProgram.programId
-        } as any)
-        .rpc()
+      console.log('[InitializePoll] Building instruction manually')
+      console.log('[InitializePoll]   programId:', programId.toString())
+      console.log('[InitializePoll]   signer:', walletPublicKey.toString())
+      console.log('[InitializePoll]   poll PDA:', pollPda.toString())
+
+      // InitializePoll instruction discriminator from IDL: [193, 22, 99, 197, 18, 33, 115, 117]
+      const discriminator = Buffer.from([193, 22, 99, 197, 18, 33, 115, 117])
+
+      // Encode poll_id as u64 (8 bytes, little-endian)
+      const pollIdBytes = Buffer.from(new BN(pollId).toArray('le', 8))
+
+      // Encode description as Anchor string (4-byte length prefix + utf8 bytes)
+      const descriptionBytes = Buffer.from(description, 'utf8')
+      const descriptionLen = Buffer.alloc(4)
+      descriptionLen.writeUInt32LE(descriptionBytes.length, 0)
+
+      // Encode poll_start as u64 (8 bytes, little-endian)
+      const pollStartBytes = Buffer.from(new BN(pollStart).toArray('le', 8))
+
+      // Encode poll_end as u64 (8 bytes, little-endian)
+      const pollEndBytes = Buffer.from(new BN(pollEnd).toArray('le', 8))
+
+      // Combine: discriminator + poll_id + description (len + bytes) + poll_start + poll_end
+      const data = Buffer.concat([discriminator, pollIdBytes, descriptionLen, descriptionBytes, pollStartBytes, pollEndBytes])
+
+      // Build instruction with EXACT account ordering as defined in the Rust program:
+      // 1. signer (writable, signer)
+      // 2. poll (writable - init)
+      // 3. system_program (readonly)
+      const instruction = new TransactionInstruction({
+        keys: [
+          { pubkey: walletPublicKey, isSigner: true, isWritable: true },      // signer
+          { pubkey: pollPda, isSigner: false, isWritable: true },              // poll
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
+        ],
+        programId: programId,
+        data: data,
+      })
+
+      console.log('[InitializePoll] Account keys:')
+      instruction.keys.forEach((k, i) => {
+        const names = ['signer', 'poll', 'system_program']
+        console.log(`[InitializePoll]   ${i} (${names[i]}): ${k.pubkey.toString()} | signer: ${k.isSigner}, writable: ${k.isWritable}`)
+      })
+
+      // Get recent blockhash for the transaction
+      const { blockhash } = await connection.getLatestBlockhash('confirmed')
+
+      // Create a VersionedTransaction using MessageV0 for strict account ordering
+      const messageV0 = new TransactionMessage({
+        payerKey: walletPublicKey,
+        recentBlockhash: blockhash,
+        instructions: [instruction],
+      }).compileToV0Message()
+
+      const versionedTransaction = new VersionedTransaction(messageV0)
+
+      console.log('[InitializePoll] Created VersionedTransaction')
+
+      // Use Privy's signAndSendTransaction
+      return signAndSendTransaction(versionedTransaction)
     },
     onSuccess: (signature) => {
       transactionToast(signature)
@@ -228,9 +269,7 @@ export function useVotingProgram() {
   const initializeCandidate = useMutation({
     mutationKey: ['voting', 'initializeCandidate', { cluster }],
     mutationFn: async ({ pollId, candidateName }: { pollId: number, candidateName: string }) => {
-      if (!solanaWallet?.address) throw new Error('Wallet not connected')
-
-      const userPublicKey = new PublicKey(solanaWallet.address)
+      if (!solanaWallet?.address || !walletPublicKey) throw new Error('Wallet not connected')
 
       // Get poll account to check start time
       const [pollPda] = PublicKey.findProgramAddressSync(
@@ -238,7 +277,7 @@ export function useVotingProgram() {
         programId
       )
 
-      const pollAccount = await program.account.poll.fetch(pollPda)
+      const pollAccount = await (program.account as any).poll.fetch(pollPda)
       const now = Math.floor(Date.now() / 1000)
 
       if (now >= pollAccount.pollStart.toNumber()) {
@@ -253,19 +292,64 @@ export function useVotingProgram() {
         programId
       )
 
-      // @ts-ignore - bypass TypeScript errors for account naming discrepancies
-      return (program.methods as any)
-        .initializeCandidate(
-          candidateName,
-          new BN(pollId)
-        )
-        .accounts({
-          signer: userPublicKey,
-          poll: pollPda,
-          candidate: candidatePda,
-          systemProgram: new PublicKey("11111111111111111111111111111111")
-        })
-        .rpc()
+      console.log('[InitializeCandidate] Building instruction manually')
+      console.log('[InitializeCandidate]   programId:', programId.toString())
+      console.log('[InitializeCandidate]   signer:', walletPublicKey.toString())
+      console.log('[InitializeCandidate]   poll PDA:', pollPda.toString())
+      console.log('[InitializeCandidate]   candidate PDA:', candidatePda.toString())
+
+      // InitializeCandidate instruction discriminator from IDL: [210, 107, 118, 204, 255, 97, 112, 26]
+      const discriminator = Buffer.from([210, 107, 118, 204, 255, 97, 112, 26])
+
+      // Encode candidate_name as Anchor string (4-byte length prefix + utf8 bytes)
+      const candidateNameBytes = Buffer.from(candidateName, 'utf8')
+      const candidateNameLen = Buffer.alloc(4)
+      candidateNameLen.writeUInt32LE(candidateNameBytes.length, 0)
+
+      // Encode poll_id as u64 (8 bytes, little-endian)
+      const pollIdBytes = Buffer.from(new BN(pollId).toArray('le', 8))
+
+      // Combine: discriminator + candidate_name (len + bytes) + poll_id
+      const data = Buffer.concat([discriminator, candidateNameLen, candidateNameBytes, pollIdBytes])
+
+      // Build instruction with EXACT account ordering as defined in the Rust program:
+      // 1. signer (writable, signer)
+      // 2. poll (writable)
+      // 3. candidate (writable - init)
+      // 4. system_program (readonly)
+      const instruction = new TransactionInstruction({
+        keys: [
+          { pubkey: walletPublicKey, isSigner: true, isWritable: true },      // signer
+          { pubkey: pollPda, isSigner: false, isWritable: true },              // poll
+          { pubkey: candidatePda, isSigner: false, isWritable: true },         // candidate
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
+        ],
+        programId: programId,
+        data: data,
+      })
+
+      console.log('[InitializeCandidate] Account keys:')
+      instruction.keys.forEach((k, i) => {
+        const names = ['signer', 'poll', 'candidate', 'system_program']
+        console.log(`[InitializeCandidate]   ${i} (${names[i]}): ${k.pubkey.toString()} | signer: ${k.isSigner}, writable: ${k.isWritable}`)
+      })
+
+      // Get recent blockhash for the transaction
+      const { blockhash } = await connection.getLatestBlockhash('confirmed')
+
+      // Create a VersionedTransaction using MessageV0 for strict account ordering
+      const messageV0 = new TransactionMessage({
+        payerKey: walletPublicKey,
+        recentBlockhash: blockhash,
+        instructions: [instruction],
+      }).compileToV0Message()
+
+      const versionedTransaction = new VersionedTransaction(messageV0)
+
+      console.log('[InitializeCandidate] Created VersionedTransaction')
+
+      // Use Privy's signAndSendTransaction
+      return signAndSendTransaction(versionedTransaction)
     },
     onSuccess: (signature) => {
       transactionToast(signature)
@@ -286,21 +370,61 @@ export function useVotingProgram() {
   const closePollEarly = useMutation({
     mutationKey: ['closePollEarly'],
     mutationFn: async ({ pollId }: { pollId: number }) => {
-      if (!solanaWallet?.address) throw new Error('Wallet not connected')
+      if (!solanaWallet?.address || !walletPublicKey) throw new Error('Wallet not connected')
 
-      const userPublicKey = new PublicKey(solanaWallet.address)
       const [pollPda] = PublicKey.findProgramAddressSync(
         [Buffer.from(new BN(pollId).toArray('le', 8))],
         programId
       )
 
-      return program.methods
-        .closePollEarly(new BN(pollId))
-        .accounts({
-          signer: userPublicKey,
-          poll: pollPda,
-        })
-        .rpc()
+      console.log('[ClosePollEarly] Building instruction manually')
+      console.log('[ClosePollEarly]   programId:', programId.toString())
+      console.log('[ClosePollEarly]   signer:', walletPublicKey.toString())
+      console.log('[ClosePollEarly]   poll PDA:', pollPda.toString())
+
+      // ClosePollEarly instruction discriminator from IDL: [156, 45, 218, 12, 167, 89, 234, 201]
+      const discriminator = Buffer.from([156, 45, 218, 12, 167, 89, 234, 201])
+
+      // Encode poll_id as u64 (8 bytes, little-endian)
+      const pollIdBytes = Buffer.from(new BN(pollId).toArray('le', 8))
+
+      // Combine: discriminator + poll_id
+      const data = Buffer.concat([discriminator, pollIdBytes])
+
+      // Build instruction with EXACT account ordering as defined in the Rust program:
+      // 1. signer (writable, signer)
+      // 2. poll (writable)
+      const instruction = new TransactionInstruction({
+        keys: [
+          { pubkey: walletPublicKey, isSigner: true, isWritable: true },      // signer
+          { pubkey: pollPda, isSigner: false, isWritable: true },              // poll
+        ],
+        programId: programId,
+        data: data,
+      })
+
+      console.log('[ClosePollEarly] Account keys:')
+      instruction.keys.forEach((k, i) => {
+        const names = ['signer', 'poll']
+        console.log(`[ClosePollEarly]   ${i} (${names[i]}): ${k.pubkey.toString()} | signer: ${k.isSigner}, writable: ${k.isWritable}`)
+      })
+
+      // Get recent blockhash for the transaction
+      const { blockhash } = await connection.getLatestBlockhash('confirmed')
+
+      // Create a VersionedTransaction using MessageV0 for strict account ordering
+      const messageV0 = new TransactionMessage({
+        payerKey: walletPublicKey,
+        recentBlockhash: blockhash,
+        instructions: [instruction],
+      }).compileToV0Message()
+
+      const versionedTransaction = new VersionedTransaction(messageV0)
+
+      console.log('[ClosePollEarly] Created VersionedTransaction')
+
+      // Use Privy's signAndSendTransaction
+      return signAndSendTransaction(versionedTransaction)
     },
     onSuccess: (signature) => {
       transactionToast(signature)
@@ -317,20 +441,32 @@ export function useVotingProgram() {
   const vote = useMutation({
     mutationKey: ['vote'],
     mutationFn: async ({ pollId, candidateName }: { pollId: number; candidateName: string }) => {
-      if (!solanaWallet?.address) throw new Error('Wallet not connected')
-      if (!hasEnoughSol) throw new Error('Insufficient SOL balance')
+      console.log('[Vote] Starting vote for poll:', pollId, 'candidate:', candidateName)
 
-      const userPublicKey = new PublicKey(solanaWallet.address)
+      if (!solanaWallet?.address || !walletPublicKey) {
+        throw new Error('Wallet not connected')
+      }
+
+      // Verify we're not using the dummy provider
+      const isDummyProvider = provider.publicKey?.toString() === '11111111111111111111111111111111'
+      if (isDummyProvider || !walletReady) {
+        throw new Error('Wallet provider not ready. Please wait a moment and try again.')
+      }
+
+      if (!hasEnoughSol) {
+        throw new Error('Insufficient SOL balance')
+      }
 
       // Clean up old localStorage entries
       cleanupOldVotes()
 
-      const transactionId = `${pollId}-${candidateName}-${userPublicKey.toString()}`
+      const transactionId = `${pollId}-${candidateName}-${walletPublicKey.toString()}`
       const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
 
       // Check if this exact vote was processed recently (within last 5 minutes)
       const recentVoteTime = processedVotes[transactionId]
       if (recentVoteTime && (Date.now() - recentVoteTime) < 5 * 60 * 1000) {
+        console.error('[Vote] Vote already processed recently')
         throw new Error('This vote has already been processed recently')
       }
 
@@ -350,55 +486,169 @@ export function useVotingProgram() {
       const [voterRecordPda] = PublicKey.findProgramAddressSync(
         [
           Buffer.from(new BN(pollId).toArray('le', 8)),
-          userPublicKey.toBuffer()
+          walletPublicKey.toBuffer()
         ],
         programId
       )
 
+      // Pre-flight checks for better error messages
       try {
-        // Build the transaction instruction
-        const instruction = await program.methods
-          .vote(candidateName, new BN(pollId))
-          .accounts({
-            signer: userPublicKey,
-            poll: pollPda,
-            candidate: candidatePda,
-            voterRecord: voterRecordPda,
-            systemProgram: SystemProgram.programId
-          })
-          .instruction()
+        // Check if user has already voted
+        const voterRecordInfo = await connection.getAccountInfo(voterRecordPda)
+        if (voterRecordInfo !== null) {
+          throw new Error('You have already voted in this poll')
+        }
 
-        // Get fresh blockhash to avoid reuse
-        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed')
+        // Check if poll exists and is within voting period
+        const pollAccount = await (program.account as any).poll.fetch(pollPda)
+        const now = Math.floor(Date.now() / 1000)
 
-        // Create and send transaction with skipPreflight to avoid simulation issues
-        const transaction = new Transaction({
-          feePayer: userPublicKey,
-          blockhash,
-          lastValidBlockHeight
-        }).add(instruction)
+        if (now < pollAccount.pollStart.toNumber()) {
+          throw new Error('Poll has not started yet')
+        }
 
-        // Send transaction using the provider's sendAndConfirm method
-        const signature = await provider.sendAndConfirm(transaction, [], {
-          skipPreflight: true,
-          maxRetries: 3,
-          commitment: 'confirmed'
+        if (now > pollAccount.pollEnd.toNumber()) {
+          throw new Error('Poll has ended')
+        }
+
+        // Check if candidate exists
+        const candidateInfo = await connection.getAccountInfo(candidatePda)
+        if (candidateInfo === null) {
+          throw new Error('Candidate not found')
+        }
+
+        // Check if account owners match the expected program ID
+        const pollAccountInfo = await connection.getAccountInfo(pollPda)
+        console.log('[Vote] Poll account owner:', pollAccountInfo?.owner?.toString())
+        console.log('[Vote] Expected program ID:', programId.toString())
+        console.log('[Vote] Poll owner matches:', pollAccountInfo?.owner?.equals(programId))
+
+        if (pollAccountInfo?.owner && !pollAccountInfo.owner.equals(programId)) {
+          throw new Error(`Poll account owned by ${pollAccountInfo.owner.toString()} but expected ${programId.toString()}`)
+        }
+
+        console.log('[Vote] Candidate account owner:', candidateInfo?.owner?.toString())
+        if (candidateInfo?.owner && !candidateInfo.owner.equals(programId)) {
+          throw new Error(`Candidate account owned by ${candidateInfo.owner.toString()} but expected ${programId.toString()}`)
+        }
+
+        console.log('[Vote] Pre-flight checks passed')
+      } catch (prefightError: any) {
+        // Re-throw our custom errors, but wrap other errors
+        if (prefightError.message?.includes('already voted') ||
+            prefightError.message?.includes('not started') ||
+            prefightError.message?.includes('has ended') ||
+            prefightError.message?.includes('not found') ||
+            prefightError.message?.includes('owned by') ||
+            prefightError.message?.includes('expected')) {
+          throw prefightError
+        }
+        console.warn('[Vote] Pre-flight check warning:', prefightError.message)
+        // Continue anyway - the on-chain program will validate
+      }
+
+      try {
+        // Build the transaction instruction MANUALLY to ensure correct account ordering
+        console.log('[Vote] Building instruction manually with:')
+        console.log('[Vote]   programId:', programId.toString())
+        console.log('[Vote]   signer:', walletPublicKey.toString())
+        console.log('[Vote]   poll PDA:', pollPda.toString())
+        console.log('[Vote]   candidate PDA:', candidatePda.toString())
+        console.log('[Vote]   voterRecord PDA:', voterRecordPda.toString())
+        console.log('[Vote]   systemProgram:', SystemProgram.programId.toString())
+
+        // Vote instruction discriminator from IDL: [227, 110, 155, 23, 136, 126, 172, 25]
+        const discriminator = Buffer.from([227, 110, 155, 23, 136, 126, 172, 25])
+
+        // Encode candidate_name as Anchor string (4-byte length prefix + utf8 bytes)
+        const candidateNameBytes = Buffer.from(candidateName, 'utf8')
+        const candidateNameLen = Buffer.alloc(4)
+        candidateNameLen.writeUInt32LE(candidateNameBytes.length, 0)
+
+        // Encode poll_id as u64 (8 bytes, little-endian)
+        const pollIdBytes = Buffer.from(new BN(pollId).toArray('le', 8))
+
+        // Combine: discriminator + candidate_name (len + bytes) + poll_id
+        const data = Buffer.concat([discriminator, candidateNameLen, candidateNameBytes, pollIdBytes])
+
+        console.log('[Vote] Instruction data length:', data.length)
+        console.log('[Vote] Instruction data (hex):', data.toString('hex'))
+
+        // Build instruction with EXACT account ordering as defined in the Rust program:
+        // 1. signer (writable, signer)
+        // 2. poll (readonly)
+        // 3. candidate (writable)
+        // 4. voter_record (writable)
+        // 5. system_program (readonly)
+        const instruction = new TransactionInstruction({
+          keys: [
+            { pubkey: walletPublicKey, isSigner: true, isWritable: true },      // signer
+            { pubkey: pollPda, isSigner: false, isWritable: false },            // poll
+            { pubkey: candidatePda, isSigner: false, isWritable: true },        // candidate
+            { pubkey: voterRecordPda, isSigner: false, isWritable: true },      // voter_record
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
+          ],
+          programId: programId,
+          data: data,
         })
+
+        console.log('[Vote] Instruction built manually, programId:', instruction.programId.toString())
+        console.log('[Vote] Account keys:')
+        instruction.keys.forEach((k, i) => {
+          const names = ['signer', 'poll', 'candidate', 'voter_record', 'system_program']
+          console.log(`[Vote]   ${i} (${names[i]}): ${k.pubkey.toString()} | signer: ${k.isSigner}, writable: ${k.isWritable}`)
+        })
+
+        // Verify system_program is correct
+        const systemProgramKey = instruction.keys[4]
+        if (systemProgramKey.pubkey.toString() !== '11111111111111111111111111111111') {
+          console.error('[Vote] ERROR: system_program is not correct!')
+          console.error('[Vote] Expected: 11111111111111111111111111111111')
+          console.error('[Vote] Got:', systemProgramKey.pubkey.toString())
+        } else {
+          console.log('[Vote] system_program is CORRECT: 11111111111111111111111111111111')
+        }
+
+        // Create legacy transaction
+        const transaction = new Transaction()
+        transaction.add(instruction)
+
+        // Get recent blockhash
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed')
+        transaction.recentBlockhash = blockhash
+        transaction.lastValidBlockHeight = lastValidBlockHeight
+        transaction.feePayer = walletPublicKey
+
+        // Log the compiled message to debug account ordering
+        const compiledMessage = transaction.compileMessage()
+        console.log('[Vote] Compiled message account keys:')
+        compiledMessage.accountKeys.forEach((key, idx) => {
+          console.log(`[Vote]   message.accountKeys[${idx}]: ${key.toString()}`)
+        })
+        console.log('[Vote] Compiled message instructions:')
+        compiledMessage.instructions.forEach((ix, ixIdx) => {
+          console.log(`[Vote]   instruction[${ixIdx}] programIdIndex: ${ix.programIdIndex}`)
+          console.log(`[Vote]   instruction[${ixIdx}] accounts: [${ix.accounts.join(', ')}]`)
+        })
+
+        // Use Privy's signAndSendTransaction
+        const signature = await signAndSendTransaction(transaction)
+        console.log('[Vote] Success, signature:', signature)
 
         return signature
       } catch (error: any) {
+        console.error('[Vote] Transaction error:', error.message)
+
         // If the error suggests the transaction was already processed, check if it actually succeeded
         if (error.message?.includes('already been processed') || error.message?.includes('This transaction has already been processed')) {
           // Wait a bit and check if the vote was actually registered
           await new Promise(resolve => setTimeout(resolve, 2000))
-          
+
           try {
-            const candidateAccount = await program.account.candidate.fetch(candidatePda)
+            await (program.account as any).candidate.fetch(candidatePda)
             // If we can fetch the candidate and it exists, the vote likely went through
-            console.log('Vote appears to have been successful despite simulation error')
             return 'vote-successful-despite-error'
           } catch (fetchError) {
-            // If we can't fetch, the vote probably didn't go through
             throw error
           }
         }
@@ -411,11 +661,35 @@ export function useVotingProgram() {
       return polls.refetch()
     },
     onError: (error: any) => {
-      console.error('Vote error:', error)
-      if (error.message?.includes('SOL')) {
+      console.error('[Vote] Error:', error.message)
+
+      // Check for Anchor/Solana program error codes
+      const errorString = String(error.cause?.message || error.message || '')
+
+      // Handle specific error messages
+      if (error.message?.includes('already voted')) {
+        toast.error('You have already voted in this poll')
+      } else if (error.message?.includes('not started')) {
+        toast.error('Poll has not started yet')
+      } else if (error.message?.includes('has ended')) {
+        toast.error('Poll has ended')
+      } else if (error.message?.includes('not found')) {
+        toast.error('Candidate not found')
+      } else if (error.message?.includes('SOL') || error.message?.includes('Insufficient')) {
         toast.error(error.message)
       } else if (error.message?.includes('already been processed')) {
         toast.error('This vote has already been processed')
+      } else if (errorString.includes('#3008') || errorString.includes('AccountNotInitialized')) {
+        // Error 3008 = AccountNotInitialized - poll or candidate doesn't exist
+        toast.error('Poll or candidate not found. The poll may not exist on this network.')
+      } else if (errorString.includes('#3012') || errorString.includes('AccountOwnedByWrongProgram')) {
+        toast.error('Account configuration error. Please try refreshing the page.')
+      } else if (errorString.includes('#0') && errorString.includes('custom program error')) {
+        // Custom error 0 = already initialized (already voted)
+        toast.error('You have already voted in this poll')
+      } else if (error.message?.includes('simulation failed') || error.message?.includes('Transaction simulation')) {
+        // Generic simulation failure
+        toast.error('Vote failed. The poll or candidate may not exist on this network.')
       } else {
         toast.error('Failed to cast vote: ' + (error.message || 'Unknown error'))
       }
@@ -425,9 +699,9 @@ export function useVotingProgram() {
   // Get candidates for a specific poll
   const getPollCandidates = async (pollId: number) => {
     try {
-      const accounts = await program.account.candidate.all()
+      const accounts = await (program.account as any).candidate.all()
       // Filter candidates that belong to this poll
-      return accounts.filter(account => {
+      return accounts.filter((account: any) => {
         const pollIdBuffer = Buffer.from(new BN(pollId).toArray('le', 8))
         const candidateNameBuffer = Buffer.from(account.account.candidateName)
         const [candidatePda] = PublicKey.findProgramAddressSync(

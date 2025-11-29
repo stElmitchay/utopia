@@ -40,7 +40,7 @@ export function PollCreatorDashboard() {
         if (!isUserAdmin(poll.pollAdmin)) continue
 
         const candidates = await getPollCandidates(poll.pollId.toNumber())
-        const totalVotes = candidates.reduce((sum, c) => sum + c.account.candidateVotes.toNumber(), 0)
+        const totalVotes = candidates.reduce((sum: number, c: any) => sum + c.account.candidateVotes.toNumber(), 0)
 
         const now = Math.floor(Date.now() / 1000)
         const startTime = poll.pollStart.toNumber()
@@ -69,7 +69,7 @@ export function PollCreatorDashboard() {
           startTime: new Date(startTime * 1000),
           endTime: new Date(endTime * 1000),
           timeRemaining,
-          candidates: candidates.map(c => ({
+          candidates: candidates.map((c: any) => ({
             name: c.account.candidateName,
             votes: c.account.candidateVotes.toNumber()
           }))

@@ -1,33 +1,36 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { usePrivy } from '@privy-io/react-auth'
-import { useWallets } from '@privy-io/react-auth/solana'
 import { PrivyWalletButton } from '../solana/privy-wallet-button'
 import { CreatePollForm } from '../voting/voting-ui'
 import { useVotingProgram } from '../voting/voting-data-access'
 import toast from 'react-hot-toast'
-import * as anchor from '@coral-xyz/anchor'
-import { PublicKey } from '@solana/web3.js'
+import {
+  PublicKey,
+  SystemProgram,
+  TransactionInstruction,
+  TransactionMessage,
+  VersionedTransaction
+} from '@solana/web3.js'
 import { BN } from '@coral-xyz/anchor'
 import { usePrivyAnchorProvider } from '../solana/privy-anchor-provider'
 import { getVotingapplicationProgramId } from '@project/anchor'
 import { ConfirmationModal } from '../ui/confirmation-modal'
+import { useCluster } from '../cluster/cluster-data-access'
 
 export default function CreatePollFeature() {
   const { ready, authenticated } = usePrivy()
-  const { ready: walletsReady, wallets } = useWallets()
+  const { cluster } = useCluster()
+  const {
+    publicKey: walletPublicKey,
+    solanaWallet,
+    signAndSendTransaction,
+    connection,
+    isReady: walletReady
+  } = usePrivyAnchorProvider()
 
-  const solanaWallet = useMemo(() => {
-    console.log('[CreatePoll] Debug:', { ready, authenticated, walletsReady, walletsCount: wallets.length })
-    if (!ready || !authenticated || !walletsReady || wallets.length === 0) {
-      console.log('[CreatePoll] Wallet not ready yet')
-      return null
-    }
-    console.log('[CreatePoll] Wallet found:', wallets[0])
-    return wallets[0] // First wallet is the embedded Solana wallet
-  }, [ready, authenticated, walletsReady, wallets])
   const router = useRouter()
   const [stage, setStage] = useState(1) // 1: Poll details, 2: Add candidates
   const [pollDetails, setPollDetails] = useState<any>(null)
@@ -35,8 +38,7 @@ export default function CreatePollFeature() {
   const [newCandidate, setNewCandidate] = useState('')
   const { program } = useVotingProgram()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const provider = usePrivyAnchorProvider()
-  const programId = getVotingapplicationProgramId('devnet')
+  const programId = getVotingapplicationProgramId(cluster.network as any)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
 
@@ -73,35 +75,53 @@ export default function CreatePollFeature() {
     setShowConfirmation(false)
     setIsSubmitting(true)
     setErrorMessage(null)
-    
+
+    if (!walletPublicKey) {
+      setErrorMessage('Wallet not connected')
+      setIsSubmitting(false)
+      return
+    }
+
     try {
-      // Create a transaction builder
-      const tx = new anchor.web3.Transaction()
-      
+      console.log('[CreatePoll] Building instructions manually')
+
       // Add poll initialization instruction
       const [pollPda] = PublicKey.findProgramAddressSync(
         [Buffer.from(new BN(pollDetails.pollId).toArray('le', 8))],
         programId
       )
 
-      // Initialize poll
-      const initializePollIx = await (program.methods
-        .initializePoll(
-          new BN(pollDetails.pollId),
-          pollDetails.description,
-          new BN(pollDetails.pollStart),
-          new BN(pollDetails.pollEnd)
-        )
-        .accounts({
-          signer: provider.publicKey,
-          poll: pollPda,
-          systemProgram: anchor.web3.SystemProgram.programId
-        } as any)
-        .instruction())
+      console.log('[CreatePoll]   programId:', programId.toString())
+      console.log('[CreatePoll]   signer:', walletPublicKey.toString())
+      console.log('[CreatePoll]   poll PDA:', pollPda.toString())
 
-      tx.add(initializePollIx)
+      // Build initialize poll instruction manually
+      // InitializePoll instruction discriminator from IDL: [193, 22, 99, 197, 18, 33, 115, 117]
+      const initPollDiscriminator = Buffer.from([193, 22, 99, 197, 18, 33, 115, 117])
+      const pollIdBytes = Buffer.from(new BN(pollDetails.pollId).toArray('le', 8))
+      const descriptionBytes = Buffer.from(pollDetails.description, 'utf8')
+      const descriptionLen = Buffer.alloc(4)
+      descriptionLen.writeUInt32LE(descriptionBytes.length, 0)
+      const pollStartBytes = Buffer.from(new BN(pollDetails.pollStart).toArray('le', 8))
+      const pollEndBytes = Buffer.from(new BN(pollDetails.pollEnd).toArray('le', 8))
+      const initPollData = Buffer.concat([initPollDiscriminator, pollIdBytes, descriptionLen, descriptionBytes, pollStartBytes, pollEndBytes])
+
+      const initializePollIx = new TransactionInstruction({
+        keys: [
+          { pubkey: walletPublicKey, isSigner: true, isWritable: true },
+          { pubkey: pollPda, isSigner: false, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        programId: programId,
+        data: initPollData,
+      })
+
+      const instructions: TransactionInstruction[] = [initializePollIx]
 
       // Add candidate initialization instructions
+      // InitializeCandidate instruction discriminator from IDL: [210, 107, 118, 204, 255, 97, 112, 26]
+      const initCandidateDiscriminator = Buffer.from([210, 107, 118, 204, 255, 97, 112, 26])
+
       for (const candidate of candidates) {
         const [candidatePda] = PublicKey.findProgramAddressSync(
           [
@@ -111,55 +131,70 @@ export default function CreatePollFeature() {
           programId
         )
 
-        const initializeCandidateIx = await (program.methods
-          .initializeCandidate(
-            candidate,
-            new BN(pollDetails.pollId)
-          )
-          .accounts({
-            signer: provider.publicKey,
-            poll: pollPda,
-            candidate: candidatePda,
-            systemProgram: anchor.web3.SystemProgram.programId
-          } as any)
-          .instruction())
+        console.log('[CreatePoll]   candidate PDA for', candidate, ':', candidatePda.toString())
 
-        tx.add(initializeCandidateIx)
+        // Build candidate instruction data
+        const candidateNameBytes = Buffer.from(candidate, 'utf8')
+        const candidateNameLen = Buffer.alloc(4)
+        candidateNameLen.writeUInt32LE(candidateNameBytes.length, 0)
+        const initCandidateData = Buffer.concat([initCandidateDiscriminator, candidateNameLen, candidateNameBytes, pollIdBytes])
+
+        const initializeCandidateIx = new TransactionInstruction({
+          keys: [
+            { pubkey: walletPublicKey, isSigner: true, isWritable: true },
+            { pubkey: pollPda, isSigner: false, isWritable: true },
+            { pubkey: candidatePda, isSigner: false, isWritable: true },
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+          ],
+          programId: programId,
+          data: initCandidateData,
+        })
+
+        instructions.push(initializeCandidateIx)
       }
 
-      // Send the transaction
-      const signature = await provider.sendAndConfirm(tx)
+      // Get recent blockhash for the transaction
+      const { blockhash } = await connection.getLatestBlockhash('confirmed')
+
+      // Create a VersionedTransaction using MessageV0 for strict account ordering
+      const messageV0 = new TransactionMessage({
+        payerKey: walletPublicKey,
+        recentBlockhash: blockhash,
+        instructions: instructions,
+      }).compileToV0Message()
+
+      const versionedTransaction = new VersionedTransaction(messageV0)
+
+      console.log('[CreatePoll] Created VersionedTransaction with', instructions.length, 'instructions')
+
+      // Use Privy's signAndSendTransaction
+      const signature = await signAndSendTransaction(versionedTransaction)
       console.log('Transaction signature:', signature)
-      
+
       // Show success message
       toast.success('Poll and candidates created successfully!')
-      
+
       // Wait a moment to ensure the transaction is processed
       await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Force a refetch of the polls
-      console.log('Fetching all polls after creation...')
-      const allPolls = await program.account.poll.all()
-      console.log('Polls after creation:', allPolls)
-      
+
       // Redirect to voting page
       router.push('/voting')
     } catch (error: any) {
       console.error('Error creating poll:', error)
-      
+
       // Check for account already in use error
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (errorMessage.includes('already in use')) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMsg.includes('already in use')) {
         // Generate a suggested new ID
         const suggestedId = pollDetails.pollId + Math.floor(Math.random() * 1000) + 1;
         setErrorMessage(`This poll ID (${pollDetails.pollId}) is already taken. Please go back and try using a different ID, such as ${suggestedId}.`);
-      } else if (errorMessage.includes('already been processed')) {
+      } else if (errorMsg.includes('already been processed')) {
         // If the transaction was already processed, consider it a success
         toast.success('Poll and candidates created successfully!')
         router.push('/voting')
       } else {
-        setErrorMessage(`Failed to create poll: ${errorMessage}`);
-        toast.error(`Failed to create poll: ${errorMessage.substring(0, 100)}${errorMessage.length > 100 ? '...' : ''}`);
+        setErrorMessage(`Failed to create poll: ${errorMsg}`);
+        toast.error(`Failed to create poll: ${errorMsg.substring(0, 100)}${errorMsg.length > 100 ? '...' : ''}`);
       }
     } finally {
       setIsSubmitting(false)

@@ -2,7 +2,7 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("68RZ4ff8QL3FMWBcxYnk5YZ7hx6Vxxg4oA6Ews2rLR7a");
+declare_id!("7WFb9od2tkd4F9hs7FLJLhuEVzV925KTmGRVyFqkL3if");
 
 // Minimum balance required to vote (in lamports: 1 SOL = 1_000_000_000 lamports)
 const MIN_BALANCE_TO_VOTE: u64 = 1_000_000_000; // 1 SOL

@@ -1,15 +1,15 @@
 [toolchain]
-anchor_version = "0.30.1"
+anchor_version = "0.32.1"
 
 [features]
 resolution = true
 skip-lint = false
 
 [programs.localnet]
-votingapplication = "68RZ4ff8QL3FMWBcxYnk5YZ7hx6Vxxg4oA6Ews2rLR7a"
+votingapplication = "7WFb9od2tkd4F9hs7FLJLhuEVzV925KTmGRVyFqkL3if"
 
 [programs.devnet]
-votingapplication = "68RZ4ff8QL3FMWBcxYnk5YZ7hx6Vxxg4oA6Ews2rLR7a"
+votingapplication = "7WFb9od2tkd4F9hs7FLJLhuEVzV925KTmGRVyFqkL3if"
 
 [registry]
 url = "https://api.apr.dev"

@@ -1,8 +1,6 @@
 'use client'
 
 import {TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID} from '@solana/spl-token'
-import { usePrivy } from '@privy-io/react-auth'
-import { useWallets } from '@privy-io/react-auth/solana'
 import {
   Connection,
   LAMPORTS_PER_SOL,
@@ -15,8 +13,6 @@ import {
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {useTransactionToast} from '../ui/ui-layout'
-import { BN } from '@coral-xyz/anchor'
-import * as spl from '@solana/spl-token'
 import { usePrivyAnchorProvider } from '../solana/privy-anchor-provider'
 import { useCluster } from '../cluster/cluster-data-access'
 import { useMemo } from 'react'
@@ -65,7 +61,7 @@ export function useTransferSol({ address }: { address: PublicKey }) {
   const { cluster } = useCluster()
   const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
   const transactionToast = useTransactionToast()
-  const provider = usePrivyAnchorProvider()
+  const { signAndSendTransaction } = usePrivyAnchorProvider()
   const client = useQueryClient()
 
   return useMutation({
@@ -80,11 +76,8 @@ export function useTransferSol({ address }: { address: PublicKey }) {
           connection,
         })
 
-        // Send transaction and await for signature using Privy provider
-        signature = await provider.sendAndConfirm(transaction)
-
-        // Send transaction and await for signature
-        await connection.confirmTransaction({ signature, ...latestBlockhash }, 'confirmed')
+        // Use Privy's signAndSendTransaction
+        signature = await signAndSendTransaction(transaction)
 
         console.log(signature)
         return signature
@@ -187,17 +180,9 @@ async function createTransaction({
 }
 
 export function useAnchorAccount() {
-  const provider = usePrivyAnchorProvider()
-  const { authenticated } = usePrivy()
-  const { wallets } = useWallets()
-  const solanaWallet = useMemo(() => wallets[0], [wallets])
+  const { publicKey, signAndSendTransaction, isReady } = usePrivyAnchorProvider()
 
-  const publicKey = useMemo(() => {
-    if (!authenticated || !solanaWallet?.address) return null
-    return new PublicKey(solanaWallet.address)
-  }, [authenticated, solanaWallet])
-
-  if (!provider || !publicKey) {
+  if (!isReady || !publicKey) {
     return {
       loading: false,
       error: new Error('Wallet not connected'),
@@ -211,6 +196,6 @@ export function useAnchorAccount() {
   return {
     loading: false,
     publicKey,
-    sendTransaction: provider.sendAndConfirm,
+    sendTransaction: signAndSendTransaction,
   }
 }

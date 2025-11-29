@@ -27,6 +27,7 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
 
 # vercel
 .vercel
@@ -39,4 +40,11 @@ tmp
 # Logs and RocksDB options
 test-ledger
 
+# Anchor/Solana build artifacts
+anchor/target/
+anchor/Cargo.lock
+
+# Editor
 .cursor
+.idea
+.vscode

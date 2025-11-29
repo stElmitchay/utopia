@@ -350,7 +350,7 @@ export function VotingSection({
       })
 
       // Store the transaction ID locally to prevent duplicate submissions
-      const transactionId = `${pollId}-${candidateToVoteFor}-${solanaWallet.address}`
+      const transactionId = `${pollId}-${candidateToVoteFor}-${solanaWallet?.address || 'unknown'}`
       const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
       processedVotes[transactionId] = Date.now()
       localStorage.setItem('processedVotes', JSON.stringify(processedVotes))
@@ -374,7 +374,7 @@ export function VotingSection({
         toast.success('Vote was successfully processed!')
 
         // Store the transaction to prevent future duplicates
-        const transactionId = `${pollId}-${candidateToVoteFor}-${solanaWallet.address}`
+        const transactionId = `${pollId}-${candidateToVoteFor}-${solanaWallet?.address || 'unknown'}`
         const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
         processedVotes[transactionId] = Date.now()
         localStorage.setItem('processedVotes', JSON.stringify(processedVotes))
@@ -548,7 +548,6 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
   const { ready: walletsReady, wallets } = useWallets()
 
   const solanaWallet = useMemo(() => {
-    console.log('[PollCard] Debug:', { ready, authenticated, walletsReady, walletsCount: wallets.length })
     if (!ready || !authenticated || !walletsReady || wallets.length === 0) return null
     return wallets[0] // First wallet is the embedded Solana wallet
   }, [ready, authenticated, walletsReady, wallets])
@@ -971,55 +970,33 @@ export function PollsList({ filter = 'active' }: { filter?: 'active' | 'future' 
     )
   }
 
-  console.log('All polls:', polls.data)
-  console.log('Current filter:', filter)
-
   // Filter polls based on the selected filter
-  const filteredPolls = polls.data.filter(poll => {
+  const filteredPolls = polls.data.filter((poll: any) => {
     const now = Math.floor(Date.now() / 1000)
-
-    // Make sure we're accessing the correct properties
     const pollData = poll.account
-    console.log('Poll data:', pollData)
 
-    // Check if pollStart and pollEnd exist and are valid
     if (!pollData.pollStart || !pollData.pollEnd) {
-      console.error('Poll missing start or end time:', pollData)
       return false
     }
 
     const startTime = pollData.pollStart.toNumber()
     const endTime = pollData.pollEnd.toNumber()
 
-    console.log('Poll:', pollData.description || 'Untitled', 'Start:', startTime, 'End:', endTime, 'Now:', now)
-
-    let isIncluded = false
     switch (filter) {
       case 'active':
-        // For active polls, include those that are currently within their time window
-        isIncluded = now >= startTime && now <= endTime
-        break
+        return now >= startTime && now <= endTime
       case 'future':
-        // For future polls, include those that haven't started yet
-        isIncluded = now < startTime
-        break
+        return now < startTime
       case 'past':
-        // For past polls, include those that have ended
-        isIncluded = now > endTime
-        break
+        return now > endTime
       default:
-        isIncluded = true
+        return true
     }
-
-    console.log('Is included:', isIncluded)
-    return isIncluded
   })
-
-  console.log('Filtered polls:', filteredPolls)
 
   return (
     <div className="space-y-2">
-      {filteredPolls.map((pollAccount) => (
+      {filteredPolls.map((pollAccount: any) => (
         <PollCard
           key={pollAccount.publicKey.toString()}
           poll={pollAccount.account}

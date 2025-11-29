@@ -13,13 +13,14 @@ export function useVotingapplicationProgram() {
   const { cluster } = useCluster()
   const connection = useMemo(() => new Connection(cluster.endpoint, 'confirmed'), [cluster.endpoint])
   const transactionToast = useTransactionToast()
-  const provider = usePrivyAnchorProvider()
+  const { provider, isReady: walletReady } = usePrivyAnchorProvider()
   const programId = useMemo(() => getVotingapplicationProgramId(cluster.network as Cluster), [cluster])
-  const program = useMemo(() => getVotingapplicationProgram(provider, programId), [provider, programId])
+  // Include walletReady in dependencies to force re-creation when wallet connects
+  const program = useMemo(() => getVotingapplicationProgram(provider, programId), [provider, programId, walletReady])
 
   const polls = useQuery({
     queryKey: ['votingapplication', 'polls', { cluster }],
-    queryFn: () => program.account.poll.all(),
+    queryFn: () => (program.account as any).poll.all(),
   })
 
   const getProgramAccount = useQuery({
@@ -56,7 +57,7 @@ export function useVotingapplicationProgramAccount({ account }: { account: Publi
 
   const query = useQuery({
     queryKey: ['votingapplication', 'account', { cluster, account }],
-    queryFn: () => program.account.poll.fetch(account),
+    queryFn: () => (program.account as any).poll.fetch(account),
   })
 
   /* These methods don't exist in the IDL

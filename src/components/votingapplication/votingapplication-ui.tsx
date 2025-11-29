@@ -42,7 +42,7 @@ export function VotingapplicationList() {
         <span className="loading loading-spinner loading-lg"></span>
       ) : polls.data?.length ? (
         <div className="grid md:grid-cols-2 gap-4">
-          {polls.data?.map((account) => (
+          {polls.data?.map((account: any) => (
             <VotingapplicationCard key={account.publicKey.toString()} account={account.publicKey} />
           ))}
         </div>
