@@ -460,14 +460,15 @@ export function useVotingProgram() {
       // Clean up old localStorage entries
       cleanupOldVotes()
 
-      const transactionId = `${pollId}-${candidateName}-${walletPublicKey.toString()}`
+      // Track by poll only (not candidate) to ensure one vote per poll
+      const transactionId = `${pollId}-${walletPublicKey.toString()}`
       const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
 
-      // Check if this exact vote was processed recently (within last 5 minutes)
+      // Check if this poll was voted on recently (within last 5 minutes)
       const recentVoteTime = processedVotes[transactionId]
       if (recentVoteTime && (Date.now() - recentVoteTime) < 5 * 60 * 1000) {
-        console.error('[Vote] Vote already processed recently')
-        throw new Error('This vote has already been processed recently')
+        console.error('[Vote] Already voted in this poll recently')
+        throw new Error('You have already voted in this poll')
       }
 
       const [pollPda] = PublicKey.findProgramAddressSync(

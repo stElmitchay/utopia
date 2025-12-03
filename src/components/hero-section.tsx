@@ -5,6 +5,7 @@ import { Environment, Float } from "@react-three/drei"
 import { motion } from "motion/react"
 import { Suspense } from "react"
 import { GeometricShapes } from "./geometric-shapes"
+import Link from "next/link"
 
 function Scene() {
   return (
@@ -59,29 +60,63 @@ export function HeroSection() {
           </motion.div>
         </div>
 
-        {/* Bottom Info */}
-        <div className="absolute bottom-8 left-6 md:left-8 right-6 md:right-8 flex justify-between items-end">
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="text-xs md:text-sm text-muted-foreground max-w-xs"
-          >
-            Decentralized voting
-            <br />
-            on Solana blockchain
-          </motion.p>
+        {/* Bottom Section with CTA */}
+        <div className="absolute bottom-8 left-6 md:left-8 right-6 md:right-8">
+          {/* Info texts on sides, CTA in center */}
+          <div className="flex justify-between items-end">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="text-xs md:text-sm text-muted-foreground max-w-[120px] md:max-w-xs"
+            >
+              Decentralized voting
+              <br />
+              on Solana blockchain
+            </motion.p>
 
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="text-xs md:text-sm text-muted-foreground text-right"
-          >
-            Transparent, tamper-proof
-            <br />
-            elections for everyone.
-          </motion.p>
+            {/* Get Started Button - Center */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="flex flex-col items-center"
+            >
+              <Link
+                href="/create-poll"
+                className="group inline-flex items-center gap-3 px-6 md:px-8 py-3 md:py-4 bg-accent text-background font-bold uppercase tracking-wide text-xs md:text-sm border-2 border-accent hover:bg-transparent hover:text-accent transition-all duration-300"
+              >
+                <span>Get Started</span>
+                <svg
+                  className="w-4 h-4 md:w-5 md:h-5 transform group-hover:translate-x-1 transition-transform"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </Link>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                className="text-[10px] md:text-xs text-muted-foreground mt-3 font-mono"
+              >
+                NO SIGNUP REQUIRED
+              </motion.p>
+            </motion.div>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="text-xs md:text-sm text-muted-foreground text-right max-w-[120px] md:max-w-xs"
+            >
+              Transparent, tamper-proof
+              <br />
+              elections for everyone.
+            </motion.p>
+          </div>
         </div>
       </div>
 

@@ -3,7 +3,6 @@
 import { usePrivy } from '@privy-io/react-auth'
 import { useWallets } from '@privy-io/react-auth/solana'
 import { PollsList } from './voting-ui'
-import Link from 'next/link'
 import { useState, useMemo } from 'react'
 
 export function VotingFeature() {
@@ -25,8 +24,10 @@ export function VotingFeature() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 md:px-8 py-8">
-        {/* Single Row: Filter + Create Button */}
-        <div className="flex items-center justify-end gap-4 mb-8">
+        {/* Filter Row */}
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-2xl font-bold text-foreground uppercase tracking-wide">Explore Polls</h1>
+
           {/* Filter Dropdown */}
           <button
             onClick={() => setFilter(filter === 'active' ? 'future' : filter === 'future' ? 'past' : 'active')}
@@ -37,14 +38,6 @@ export function VotingFeature() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
-
-          {/* Create Poll Button */}
-          {authenticated && solanaWallet && (
-            <Link href="/create-poll" className="border-2 border-accent bg-accent text-background px-6 py-3 font-bold text-sm uppercase tracking-wide hover:bg-accent/90 transition-colors flex items-center gap-2">
-              <span>+</span>
-              <span>CREATE POLL</span>
-            </Link>
-          )}
         </div>
 
         {!authenticated && (

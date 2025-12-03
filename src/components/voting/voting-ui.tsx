@@ -322,13 +322,14 @@ export function VotingSection({
     }
 
     // Check for recent transactions in localStorage before attempting to vote
-    const transactionId = `${pollId}-${candidateName}-${solanaWallet.address}`
+    // Track by poll only (not candidate) to ensure one vote per poll
+    const transactionId = `${pollId}-${solanaWallet.address}`
     const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
     const recentVoteTime = processedVotes[transactionId]
 
     // If there's a recent vote (within the last 5 minutes), prevent duplicate
     if (recentVoteTime && (Date.now() - recentVoteTime) < 5 * 60 * 1000) {
-      toast.error('You have already voted for this candidate recently')
+      toast.error('You have already voted in this poll')
       return
     }
 
@@ -350,11 +351,27 @@ export function VotingSection({
         candidateName: candidateToVoteFor,
       })
 
-      // Store the transaction ID locally to prevent duplicate submissions
-      const transactionId = `${pollId}-${candidateToVoteFor}-${solanaWallet?.address || 'unknown'}`
+      // Store the transaction ID locally to prevent duplicate submissions (per-poll)
+      const transactionId = `${pollId}-${solanaWallet?.address || 'unknown'}`
       const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
       processedVotes[transactionId] = Date.now()
       localStorage.setItem('processedVotes', JSON.stringify(processedVotes))
+
+      // Store vote record for My Polls page
+      if (solanaWallet?.address) {
+        const storageKey = `votedPolls_${solanaWallet.address}`
+        const existingVotes = JSON.parse(localStorage.getItem(storageKey) || '[]')
+        // Only add if not already tracked
+        if (!existingVotes.some((v: any) => v.pollId === pollId.toString())) {
+          existingVotes.push({
+            pollId: pollId.toString(),
+            candidateName: candidateToVoteFor,
+            timestamp: Date.now(),
+            txSignature: typeof signature === 'string' ? signature : undefined
+          })
+          localStorage.setItem(storageKey, JSON.stringify(existingVotes))
+        }
+      }
 
       // Show receipt
       setVoteReceiptData({
@@ -374,12 +391,26 @@ export function VotingSection({
         // If the transaction was already processed, treat it as a success
         toast.success('Vote was successfully processed!')
 
-        // Store the transaction to prevent future duplicates
-        const transactionId = `${pollId}-${candidateToVoteFor}-${solanaWallet?.address || 'unknown'}`
+        // Store the transaction to prevent future duplicates (per-poll)
+        const transactionId = `${pollId}-${solanaWallet?.address || 'unknown'}`
         const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
         processedVotes[transactionId] = Date.now()
         localStorage.setItem('processedVotes', JSON.stringify(processedVotes))
-        
+
+        // Store vote record for My Polls page
+        if (solanaWallet?.address) {
+          const storageKey = `votedPolls_${solanaWallet.address}`
+          const existingVotes = JSON.parse(localStorage.getItem(storageKey) || '[]')
+          if (!existingVotes.some((v: any) => v.pollId === pollId.toString())) {
+            existingVotes.push({
+              pollId: pollId.toString(),
+              candidateName: candidateToVoteFor,
+              timestamp: Date.now()
+            })
+            localStorage.setItem(storageKey, JSON.stringify(existingVotes))
+          }
+        }
+
         if (onUpdate) onUpdate()
       } else {
         console.error(`Vote error: ${errorMessage}`)

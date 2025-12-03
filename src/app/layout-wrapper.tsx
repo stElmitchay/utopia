@@ -1,15 +1,18 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { ReactNode } from 'react'
+import { ReactNode, useState } from 'react'
 import { Navigation } from '@/components/navigation'
 import { Footer } from '@/components/footer'
 import { Toaster } from 'react-hot-toast'
 import { PrivyWalletButton } from '@/components/solana/privy-wallet-button'
 import { ClusterUiSelect } from '@/components/cluster/cluster-ui'
+import Link from 'next/link'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export function LayoutWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Landing page gets its own navigation
   if (pathname === '/') {
@@ -27,42 +30,116 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
       {/* Navigation */}
       <nav className="border-b-2 border-border bg-card sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="flex items-center justify-between h-20">
-            {/* Logo */}
-            <a href="/" className="brutalist-title text-2xl text-foreground tracking-tighter hover:text-accent transition-colors">
-              UTOPIA
-            </a>
+          <div className="flex items-center justify-between h-16 md:h-20">
+            {/* Left Side - Logo + Nav */}
+            <div className="flex items-center gap-6 md:gap-8">
+              <Link href="/" className="brutalist-title text-xl md:text-2xl text-foreground tracking-tighter hover:text-accent transition-colors">
+                UTOPIA
+              </Link>
 
-            {/* Center Links */}
-            <div className="hidden md:flex items-center gap-8">
-              <a
+              {/* Explore Link - Desktop */}
+              <Link
                 href="/voting"
-                className={`text-sm font-bold uppercase tracking-wide transition-colors ${
-                  pathname === '/voting'
+                className={`hidden md:inline-flex text-sm font-bold uppercase tracking-wide transition-colors ${
+                  pathname === '/voting' || pathname.startsWith('/voting/')
                     ? 'text-accent'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Voting
-              </a>
-              <a
-                href="/create-poll"
-                className={`text-sm font-bold uppercase tracking-wide transition-colors ${
-                  pathname === '/create-poll'
-                    ? 'text-accent'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Create Poll
-              </a>
+                Explore
+              </Link>
             </div>
 
-            {/* Right Side */}
-            <div className="flex items-center gap-4">
+            {/* Right Side - Actions */}
+            <div className="flex items-center gap-3 md:gap-4">
+              {/* Create Button - Desktop */}
+              <Link
+                href="/create-poll"
+                className={`hidden md:inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold uppercase tracking-wide transition-all ${
+                  pathname === '/create-poll'
+                    ? 'bg-accent text-background border-2 border-accent'
+                    : 'bg-accent text-background border-2 border-accent hover:bg-transparent hover:text-accent'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Create
+              </Link>
+
+              {/* Wallet/Profile Button */}
               <PrivyWalletButton />
+
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 text-foreground hover:text-accent transition-colors"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="md:hidden border-t-2 border-border bg-card overflow-hidden"
+            >
+              <div className="px-6 py-4 space-y-2">
+                <Link
+                  href="/voting"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`block py-3 px-4 text-sm font-bold uppercase tracking-wide transition-colors ${
+                    pathname === '/voting' || pathname.startsWith('/voting/')
+                      ? 'text-accent bg-accent/10'
+                      : 'text-foreground hover:text-accent hover:bg-accent/5'
+                  }`}
+                >
+                  Explore Polls
+                </Link>
+
+                <Link
+                  href="/my-polls"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`block py-3 px-4 text-sm font-bold uppercase tracking-wide transition-colors ${
+                    pathname === '/my-polls'
+                      ? 'text-accent bg-accent/10'
+                      : 'text-foreground hover:text-accent hover:bg-accent/5'
+                  }`}
+                >
+                  My Polls
+                </Link>
+
+                {/* Create Button - Mobile */}
+                <Link
+                  href="/create-poll"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-center gap-2 py-3 px-4 text-sm font-bold uppercase tracking-wide transition-all mt-4 bg-accent text-background border-2 border-accent"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Create New Poll
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* Main Content */}

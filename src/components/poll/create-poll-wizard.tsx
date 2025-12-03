@@ -185,7 +185,7 @@ export function CreatePollWizard({ onPollCreated }: { onPollCreated?: (details: 
                   <h2 className="text-4xl font-bold text-foreground uppercase tracking-wide brutalist-title mb-2">
                     Poll Details
                   </h2>
-                  <p className="text-muted-foreground font-mono">What's your poll about?</p>
+                  <p className="text-muted-foreground font-mono">What&apos;s your poll about?</p>
                 </div>
 
                 <div className="space-y-6 bg-card border-2 border-border p-6">
