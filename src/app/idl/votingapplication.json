@@ -10,14 +10,14 @@
     {
       "name": "close_poll_early",
       "discriminator": [
-        156,
-        45,
-        218,
-        12,
-        167,
-        89,
-        234,
-        201
+        100,
+        192,
+        253,
+        32,
+        71,
+        215,
+        137,
+        202
       ],
       "accounts": [
         {
@@ -269,15 +269,47 @@
     {
       "name": "VoterRecord",
       "discriminator": [
-        45,
-        117,
-        206,
-        107,
-        189,
-        246,
-        31,
-        194
+        178,
+        96,
+        138,
+        116,
+        143,
+        202,
+        115,
+        33
       ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "PollNotStarted",
+      "msg": "Poll has not started yet"
+    },
+    {
+      "code": 6001,
+      "name": "PollEnded",
+      "msg": "Poll has ended"
+    },
+    {
+      "code": 6002,
+      "name": "AlreadyVoted",
+      "msg": "You have already voted in this poll"
+    },
+    {
+      "code": 6003,
+      "name": "Unauthorized",
+      "msg": "You are not authorized to perform this action"
+    },
+    {
+      "code": 6004,
+      "name": "InsufficientBalance",
+      "msg": "Insufficient balance to vote. You need at least 1 SOL"
+    },
+    {
+      "code": 6005,
+      "name": "PollAlreadyEnded",
+      "msg": "Poll has already ended"
     }
   ],
   "types": [
@@ -352,38 +384,6 @@
           }
         ]
       }
-    }
-  ],
-  "errors": [
-    {
-      "code": 6000,
-      "name": "PollNotStarted",
-      "msg": "Poll has not started yet"
-    },
-    {
-      "code": 6001,
-      "name": "PollEnded",
-      "msg": "Poll has ended"
-    },
-    {
-      "code": 6002,
-      "name": "AlreadyVoted",
-      "msg": "You have already voted in this poll"
-    },
-    {
-      "code": 6003,
-      "name": "Unauthorized",
-      "msg": "You are not authorized to perform this action"
-    },
-    {
-      "code": 6004,
-      "name": "InsufficientBalance",
-      "msg": "Insufficient balance to vote. You need at least 1 SOL"
-    },
-    {
-      "code": 6005,
-      "name": "PollAlreadyEnded",
-      "msg": "Poll has already ended"
     }
   ]
 }

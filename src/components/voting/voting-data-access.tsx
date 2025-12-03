@@ -717,6 +717,48 @@ export function useVotingProgram() {
     }
   }
 
+  // Get all VoterRecord accounts for a specific user (to show their voting history)
+  const getUserVoteRecords = useQuery({
+    queryKey: ['voting', 'userVoteRecords', { cluster, wallet: walletPublicKey?.toString() }],
+    queryFn: async () => {
+      if (!walletPublicKey) return []
+      try {
+        const accounts = await (program.account as any).voterRecord.all()
+        // Filter records where voter matches the current wallet
+        return accounts.filter((account: any) =>
+          account.account.voter?.toString() === walletPublicKey.toString()
+        )
+      } catch (error) {
+        console.error('Error fetching user vote records:', error)
+        return []
+      }
+    },
+    enabled: !!walletPublicKey && walletReady,
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
+  })
+
+  // Get all polls created by the current user
+  const getUserCreatedPolls = useQuery({
+    queryKey: ['voting', 'userCreatedPolls', { cluster, wallet: walletPublicKey?.toString() }],
+    queryFn: async () => {
+      if (!walletPublicKey) return []
+      try {
+        const accounts = await (program.account as any).poll.all()
+        // Filter polls where poll_admin matches the current wallet
+        return accounts.filter((account: any) =>
+          account.account.pollAdmin?.toString() === walletPublicKey.toString()
+        )
+      } catch (error) {
+        console.error('Error fetching user created polls:', error)
+        return []
+      }
+    },
+    enabled: !!walletPublicKey && walletReady,
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
+  })
+
   // Function to check if the current user is an admin (the creator of the poll)
   const isUserAdmin = (pollCreator: PublicKey | null) => {
     if (!solanaWallet?.address || !pollCreator) return false
@@ -740,6 +782,8 @@ export function useVotingProgram() {
     getHiddenPollsData,
     setPollActive,
     isPollActive,
-    isUserAdmin
+    isUserAdmin,
+    getUserVoteRecords,
+    getUserCreatedPolls
   }
 } 

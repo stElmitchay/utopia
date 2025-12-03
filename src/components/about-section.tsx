@@ -2,8 +2,7 @@
 
 import { Canvas } from "@react-three/fiber"
 import { Float, MeshDistortMaterial } from "@react-three/drei"
-import { motion } from "motion/react"
-import { useInView } from "motion/react"
+import { motion, useInView } from "framer-motion"
 import { useRef, Suspense } from "react"
 
 function FloatingSphere() {

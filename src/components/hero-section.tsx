@@ -2,7 +2,7 @@
 
 import { Canvas } from "@react-three/fiber"
 import { Environment, Float } from "@react-three/drei"
-import { motion } from "motion/react"
+import { motion } from "framer-motion"
 import { Suspense } from "react"
 import { GeometricShapes } from "./geometric-shapes"
 import Link from "next/link"
