@@ -555,32 +555,14 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
   const { getPollCandidates, hidePoll, setPollActive, isPollActive, isUserAdmin, closePollEarly } = useVotingProgram()
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [candidates, setCandidates] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [isVoting, setIsVoting] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [isActive, setIsActive] = useState(false)
-  const [isCopied, setIsCopied] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [showResults, setShowResults] = useState(false)
+  const [showVoting, setShowVoting] = useState(false)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
 
-  // Check if the current user is an admin (the creator of the poll)
-  useEffect(() => {
-    setIsAdmin(isUserAdmin(poll.creator))
-  }, [poll.creator, isUserAdmin])
-
-  // Check if the poll is active
-  useEffect(() => {
-    const now = Date.now() / 1000
-    const startTime = poll.pollStart.toNumber()
-    const endTime = poll.pollEnd.toNumber()
-    setIsActive(now >= startTime && now <= endTime)
-  }, [poll.pollStart, poll.pollEnd])
-
-  // Load candidates when expanded
+  // Load candidates immediately
   useEffect(() => {
     const loadCandidates = async () => {
-      setIsLoading(true)
       try {
         const candidatesData = await getPollCandidates(poll.pollId.toNumber())
         setCandidates(candidatesData)
@@ -590,28 +572,8 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
         setIsLoading(false)
       }
     }
-
-    if (isExpanded) {
-      loadCandidates()
-    }
-  }, [isExpanded, poll.pollId])
-
-  const handleToggleExpand = () => {
-    setIsExpanded(!isExpanded)
-  }
-
-  const handleDeletePoll = () => {
-    // This would require a new function in the Anchor program
-    // For now, we'll just hide the poll locally
-    hidePoll(poll.pollId.toNumber())
-    onUpdate()
-  }
-
-  const handleToggleActive = () => {
-    setPollActive(poll.pollId.toNumber(), !isActive)
-    setIsActive(!isActive)
-    onUpdate()
-  }
+    loadCandidates()
+  }, [poll.pollId])
 
   const handleClosePollEarly = async () => {
     try {
@@ -623,78 +585,56 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
     }
   }
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleString()
+  const getPollStatus = () => {
+    const now = Math.floor(Date.now() / 1000)
+    const startTime = poll.pollStart.toNumber()
+    const endTime = poll.pollEnd.toNumber()
+
+    if (now > endTime) return 'ENDED'
+    if (now < startTime) return 'UPCOMING'
+    return 'LIVE'
   }
 
-  const isPollEnded = () => {
+  const getTimeRemaining = () => {
     const now = Math.floor(Date.now() / 1000)
-    return now > poll.pollEnd.toNumber()
-  }
+    const startTime = poll.pollStart.toNumber()
+    const endTime = poll.pollEnd.toNumber()
 
-  const getTimeRemaining = (startTime: number, endTime: number) => {
-    const now = Math.floor(Date.now() / 1000)
+    if (now > endTime) return 'Poll ended'
 
-    // Check if poll has ended
-    if (now > endTime) {
-      return 'Ended - View results'
-    }
-
-    // Check if poll hasn't started yet
     if (now < startTime) {
       const timeUntilStart = startTime - now
       const days = Math.floor(timeUntilStart / 86400)
       const hours = Math.floor((timeUntilStart % 86400) / 3600)
-      const minutes = Math.floor((timeUntilStart % 3600) / 60)
-
-      if (days > 0) {
-        return `Starting in ${days}d ${hours}h`
-      } else if (hours > 0) {
-        return `Starting in ${hours}h ${minutes}m`
-      } else {
-        return `Starting in ${minutes}m`
-      }
+      if (days > 0) return `Starts in ${days}d ${hours}h`
+      if (hours > 0) return `Starts in ${hours}h`
+      return `Starts in ${Math.floor(timeUntilStart / 60)}m`
     }
 
-    // Poll is active, show time remaining until end
     const timeRemaining = endTime - now
     const days = Math.floor(timeRemaining / 86400)
     const hours = Math.floor((timeRemaining % 86400) / 3600)
-    const minutes = Math.floor((timeRemaining % 3600) / 60)
+    if (days > 0) return `${days}d ${hours}h remaining`
+    if (hours > 0) return `${hours}h remaining`
+    return `${Math.floor(timeRemaining / 60)}m remaining`
+  }
 
-    if (days > 0) {
-      return `Poll ending in ${days}d ${hours}h`
-    } else if (hours > 0) {
-      return `Poll ending in ${hours}h ${minutes}m`
+  const handleCardClick = () => {
+    const status = getPollStatus()
+    if (status === 'ENDED') {
+      setShowResults(true)
+    } else if (status === 'LIVE') {
+      setShowVoting(true)
     } else {
-      return `Poll ending in ${minutes}m`
+      setShowVoting(true) // Show details for upcoming polls
     }
   }
 
-  const handleShare = async () => {
-    const pollUrl = `${window.location.origin}/poll/${poll.pollId.toString()}`
-    try {
-      await navigator.clipboard.writeText(pollUrl)
-      setIsCopied(true)
-      setTimeout(() => setIsCopied(false), 2000)
-      toast.success('Poll link copied to clipboard!')
-    } catch (err) {
-      toast.error('Failed to copy link')
-    }
-  }
-
-  // Candidate summary string
-  const candidateSummary = candidates.length > 0
-    ? candidates.map(c => c.account.candidateName).join(' vs ')
-    : 'No candidates yet'
-
-  // Prevent card click from toggling when clicking on action buttons
-  const stopPropagation = (e: React.MouseEvent) => e.stopPropagation()
-
-  // Default image for all polls
   const defaultImage = 'https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=800&q=80'
-
   const totalVotes = candidates.reduce((sum, c) => sum + Number(c.account.candidateVotes), 0)
+  const status = getPollStatus()
+  const isAdmin = isUserAdmin(poll.creator)
+  const candidateNames = candidates.map(c => c.account.candidateName).join(' • ')
 
   return (
     <>
@@ -711,6 +651,79 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
         totalVotes={totalVotes}
       />
 
+      {/* Voting Modal - Full Details */}
+      {showVoting && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/70" onClick={() => setShowVoting(false)} />
+            <div className="relative bg-card border-2 border-border max-w-3xl w-full p-6">
+              <button
+                onClick={() => setShowVoting(false)}
+                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground border-2 border-border p-1 hover:border-accent"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-foreground uppercase tracking-wide brutalist-title mb-2">
+                  {poll.description}
+                </h2>
+                <div className="flex items-center gap-3 text-sm text-muted-foreground font-mono">
+                  <span className={`px-2 py-1 border-2 font-bold ${
+                    status === 'LIVE' ? 'border-accent text-accent bg-accent/10' :
+                    status === 'ENDED' ? 'border-red-500 text-red-500 bg-red-500/10' :
+                    'border-yellow-500 text-yellow-500 bg-yellow-500/10'
+                  }`}>
+                    {status}
+                  </span>
+                  <span>{getTimeRemaining()}</span>
+                </div>
+              </div>
+
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+                </div>
+              ) : candidates.length > 0 ? (
+                <>
+                  <VotingSection
+                    pollId={poll.pollId.toNumber()}
+                    pollDescription={poll.description}
+                    candidates={candidates}
+                    isActive={status === 'LIVE'}
+                    onUpdate={onUpdate}
+                  />
+
+                  {isAdmin && status !== 'ENDED' && (
+                    <div className="mt-6">
+                      <button
+                        onClick={() => {
+                          setShowVoting(false)
+                          setShowCloseConfirm(true)
+                        }}
+                        className="w-full px-4 py-3 bg-red-500/20 border-2 border-red-500 text-red-500 text-sm font-bold uppercase tracking-wide hover:bg-red-500/30 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Close Poll Early
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8 bg-muted/20 border-2 border-border">
+                  <p className="text-foreground font-bold uppercase tracking-wide mb-1">No candidates yet</p>
+                  <p className="text-sm text-muted-foreground font-mono">Candidates will be added soon</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Close Poll Confirmation */}
       <ConfirmationModal
         isOpen={showCloseConfirm}
@@ -721,7 +734,7 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
         message={
           <div className="space-y-2">
             <p>Are you sure you want to close this poll now?</p>
-            <p className="text-sm text-[#F5F5DC]/70">
+            <p className="text-sm text-muted-foreground">
               This will immediately end voting and finalize the results. This action cannot be undone.
             </p>
           </div>
@@ -731,212 +744,105 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
         confirmButtonClass="bg-red-500 text-white hover:bg-red-600"
       />
 
-    <div
-      className={`rounded-xl shadow-lg overflow-hidden border border-[#F5F5DC]/20 mb-2 ${isExpanded ? '' : 'cursor-pointer hover:shadow-2xl transition-shadow'}`}
-      onClick={() => !isExpanded && setIsExpanded(true)}
-      style={!isExpanded ? {
-        backgroundImage: `url(${defaultImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        position: 'relative',
-        minHeight: 180,
-        color: 'white',
-      } : {}}
-    >
-      {!isExpanded && (
-        <>
-          {/* Overlay */}
-          <div style={{position: 'absolute', inset: 0, background: 'rgba(44, 84, 70, 0.65)', zIndex: 1}} />
-          {/* Content */}
-          <div className="relative z-10 flex flex-col justify-between h-full" style={{minHeight: 180}}>
-            <div className="p-4">
-              <h3 className="text-lg font-bold drop-shadow">{poll.description || 'Untitled Poll'}</h3>
-              <div className="text-sm opacity-80 drop-shadow">{poll.subtitle || 'Nationwide'}</div>
+      {/* Poll Card */}
+      <div
+        className="bg-card border-2 border-border overflow-hidden cursor-pointer hover:border-accent transition-all group"
+        onClick={handleCardClick}
+      >
+        {/* Image Section */}
+        <div className="relative h-48 overflow-hidden">
+          <img
+            src={defaultImage}
+            alt={poll.description}
+            className="w-full h-full object-cover"
+          />
+
+          {/* Status Badge */}
+          <div className={`absolute top-4 right-4 px-3 py-1 border-2 font-bold text-xs uppercase tracking-wide ${
+            status === 'LIVE' ? 'bg-accent border-accent text-background' :
+            status === 'ENDED' ? 'bg-red-500 border-red-500 text-white' :
+            'bg-yellow-500 border-yellow-500 text-black'
+          }`}>
+            {status}
+          </div>
+
+          {/* Title Overlay */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+            <h3 className="text-white font-bold text-lg uppercase tracking-wide line-clamp-2">
+              {poll.description}
+            </h3>
+          </div>
+        </div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 border-t-2 border-border">
+          <div className="p-3 border-r-2 border-border">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold mb-1">
+              Total Votes
             </div>
-            <div className="flex items-center justify-between px-4 py-4" style={{background: '#7ed6c1', borderBottomLeftRadius: 12, borderBottomRightRadius: 12}}>
-              <div className="flex items-center gap-2 text-xs text-[#2c5446]">
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                Voting closes in {getTimeRemaining(poll.pollStart.toNumber(), poll.pollEnd.toNumber()).replace('Poll ending in ', '')}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-[#2c5446]">
-                <svg className="w-4 h-4 mr-1" fill="#2c5446" stroke="#2c5446" viewBox="0 0 24 24" ><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h1v10a1 1 0 001 1h14a1 1 0 001-1V10h1" /></svg>
-                {candidates.reduce((sum, c) => sum + Number(c.account.candidateVotes), 0).toLocaleString()} votes
-              </div>
+            <div className="text-lg font-bold text-foreground">
+              {isLoading ? '...' : totalVotes}
             </div>
           </div>
-        </>
-      )}
-      {isExpanded && (
-        <div
-          className="bg-[#3a6b5a] relative"
-          style={{
-            backgroundImage: `url(${defaultImage})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            minHeight: 180,
-          }}
-        >
-          {/* Green overlay for readability */}
-          <div style={{position: 'absolute', inset: 0, background: 'rgba(44, 84, 70, 0.75)', zIndex: 1}} />
-          {/* Expanded content on top of image/overlay */}
-          <div className="relative z-10">
-            <div className="p-4">
-              <div className="flex justify-between items-start">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-medium text-[#F5F5DC]">Poll #{poll.pollId.toString()}</h3>
-                  <p className="text-sm text-[#F5F5DC]/80 mt-1">{poll.description}</p>
-                  <div className="flex items-center mt-2 text-xs text-[#F5F5DC]/60">
-                    <span>Start: {formatDate(poll.pollStart.toNumber())}</span>
-                    <span className="mx-2">•</span>
-                    <span>End: {formatDate(poll.pollEnd.toNumber())}</span>
-                  </div>
-                  <div className="mt-2">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-[#2c5446] text-[#A3E4D7]">
-                      {getTimeRemaining(poll.pollStart.toNumber(), poll.pollEnd.toNumber())}
-                    </span>
-                  </div>
-                  {/* Candidate summary always visible */}
-                  <div className="mt-2 text-sm text-[#A3E4D7] font-semibold truncate">
-                    {candidateSummary}
-                  </div>
-                </div>
-                <div className="flex flex-col space-y-2 ml-4">
-                  {isAdmin && (
-                    <>
-                      <button
-                        onClick={e => { stopPropagation(e); handleToggleActive(); }}
-                        className={`p-1 rounded-full ${
-                          isActive ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50' : 'bg-green-900/30 text-green-400 hover:bg-green-900/50'
-                        }`}
-                        title={isActive ? 'Deactivate Poll' : 'Activate Poll'}
-                      >
-                        {isActive ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        )}
-                      </button>
-                      <button
-                        onClick={e => { stopPropagation(e); handleDeletePoll(); }}
-                        className="p-1 rounded-full bg-red-900/30 text-red-400 hover:bg-red-900/50"
-                        title="Delete Poll"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </>
-                  )}
-                  <button
-                    onClick={e => { stopPropagation(e); handleShare(); }}
-                    className={`p-1 rounded-full ${isCopied ? 'bg-green-900/30 text-green-400' : 'bg-[#2c5446] text-[#F5F5DC] hover:bg-[#2c5446]/80'}`}
-                    title="Share Poll"
-                  >
-                    {isCopied ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <rect x="9" y="9" width="13" height="13" rx="2" fill="currentColor" stroke="green" strokeWidth="2" />
-                        <rect x="3" y="3" width="13" height="13" rx="2" fill="currentColor" stroke="green" strokeWidth="2" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    onClick={e => { stopPropagation(e); handleToggleExpand(); }}
-                    className="p-1 rounded-full bg-[#2c5446] text-[#F5F5DC] hover:bg-[#2c5446]/80"
-                  >
-                    {isExpanded ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </div>
-              {/* VotingSection and horizontal line */}
-              <div className="mt-4 pt-4">
-                <div className="mb-3">
-                  <h4 className="text-sm font-medium text-[#F5F5DC] mb-2">Poll Details</h4>
-                  <p className="text-xs text-[#F5F5DC]/70 mb-1">
-                    <span className="font-medium">Address:</span>{' '}
-                    <ExplorerLink path={`account/${publicKey}`} label={ellipsify(publicKey.toString())} />
-                  </p>
-                  <p className="text-xs text-[#F5F5DC]/70">
-                    <span className="font-medium">Candidates:</span> {poll.candidateAmount.toString()}
-                  </p>
-                </div>
-
-                {isLoading ? (
-                  <div className="flex justify-center my-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#A3E4D7]"></div>
-                  </div>
-                ) : candidates.length > 0 ? (
-                  <>
-                    <VotingSection pollId={poll.pollId.toNumber()} pollDescription={poll.description} candidates={candidates} isActive={isActive} onUpdate={() => {}} />
-
-                    {/* Admin Actions */}
-                    {isAdmin && !isPollEnded() && (
-                      <div className="mt-4">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setShowCloseConfirm(true)
-                          }}
-                          className="w-full px-4 py-3 bg-red-500/20 border-2 border-red-500 text-red-400 text-sm font-medium rounded-lg hover:bg-red-500/30 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center justify-center gap-2"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                          Close Poll Early
-                        </button>
-                      </div>
-                    )}
-
-                    {/* View Results Button for ended polls */}
-                    {isPollEnded() && (
-                      <div className="mt-4">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setShowResults(true)
-                          }}
-                          className="w-full px-4 py-3 bg-[#A3E4D7] text-[#0A1A14] text-sm font-bold rounded-lg hover:bg-[#A3E4D7]/90 transition-colors focus:outline-none focus:ring-2 focus:ring-[#A3E4D7] flex items-center justify-center gap-2"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                          </svg>
-                          View Final Results & Share
-                        </button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-[#F5F5DC]/70">No candidates found for this poll.</p>
-                    {!isActive && (
-                      <p className="text-sm text-red-400 mt-2">
-                        Cannot add candidates after poll has ended.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+          <div className="p-3">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold mb-1">
+              Time
+            </div>
+            <div className="text-xs font-bold text-foreground">
+              {getTimeRemaining()}
             </div>
           </div>
         </div>
-      )}
-    </div>
+
+        {/* Candidates Preview */}
+        <div className="p-4 border-t-2 border-border">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold mb-2">
+            Candidates
+          </div>
+          <div className="text-sm text-foreground font-mono line-clamp-1">
+            {isLoading ? 'Loading...' : candidateNames || 'No candidates yet'}
+          </div>
+        </div>
+
+        {/* Action Button */}
+        <div className="p-4 border-t-2 border-border">
+          <button
+            onClick={handleCardClick}
+            className={`w-full px-4 py-3 text-sm font-bold uppercase tracking-wide transition-colors border-2 flex items-center justify-center gap-2 ${
+              status === 'LIVE'
+                ? 'bg-accent text-background border-accent hover:bg-accent/90'
+                : status === 'ENDED'
+                ? 'bg-transparent text-accent border-accent hover:bg-accent/10'
+                : 'bg-transparent text-foreground border-border hover:border-accent'
+            }`}
+          >
+            {status === 'LIVE' && (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Vote Now
+              </>
+            )}
+            {status === 'ENDED' && (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                View Results
+              </>
+            )}
+            {status === 'UPCOMING' && (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                View Details
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </>
   )
 }
@@ -948,7 +854,7 @@ export function PollsList({ filter = 'active' }: { filter?: 'active' | 'future' 
   if (polls.isLoading) {
     return (
       <div className="flex justify-center py-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#A3E4D7]"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
       </div>
     )
   }
@@ -956,7 +862,7 @@ export function PollsList({ filter = 'active' }: { filter?: 'active' | 'future' 
   if (polls.error) {
     console.error('Error loading polls:', polls.error)
     return (
-      <div className="bg-red-900/20 text-red-400 rounded-lg p-4 text-sm border border-red-500/20">
+      <div className="bg-red-900/20 text-red-400 p-4 text-sm border-2 border-red-500/20">
         Error loading polls. Please try again.
       </div>
     )
@@ -964,8 +870,9 @@ export function PollsList({ filter = 'active' }: { filter?: 'active' | 'future' 
 
   if (!polls.data || polls.data.length === 0) {
     return (
-      <div className="bg-[#2c5446] text-[#F5F5DC] rounded-lg p-4 text-sm border border-[#F5F5DC]/20">
-        No polls found. Create one to get started!
+      <div className="bg-card text-foreground p-8 text-center border-2 border-border">
+        <p className="text-lg font-bold uppercase tracking-wide mb-2">No polls found</p>
+        <p className="text-sm text-muted-foreground font-mono">Create one to get started!</p>
       </div>
     )
   }
@@ -995,7 +902,7 @@ export function PollsList({ filter = 'active' }: { filter?: 'active' | 'future' 
   })
 
   return (
-    <div className="space-y-2">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {filteredPolls.map((pollAccount: any) => (
         <PollCard
           key={pollAccount.publicKey.toString()}

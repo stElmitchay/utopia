@@ -59,9 +59,6 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
 
             {/* Right Side */}
             <div className="flex items-center gap-4">
-              <div className="hidden lg:block">
-                <ClusterUiSelect />
-              </div>
               <PrivyWalletButton />
             </div>
           </div>

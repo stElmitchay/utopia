@@ -58,7 +58,7 @@ export function PrivyWalletButton() {
     if (!ready) {
       return (
         <div className="flex items-center">
-          <div className="animate-spin h-4 w-4 mr-2 border-b-2 border-[#0A1A14] rounded-full"></div>
+          <div className="animate-spin h-4 w-4 mr-2 border-b-2 border-background"></div>
           <span>Loading...</span>
         </div>
       )
@@ -67,7 +67,7 @@ export function PrivyWalletButton() {
     if (authenticated && solanaWallet) {
       return (
         <div className="flex items-center">
-          <div className="w-2 h-2 bg-[#A3E4D7] rounded-full mr-2"></div>
+          <div className="w-2 h-2 bg-background mr-2"></div>
           <span>{formattedAddress}</span>
         </div>
       )
@@ -84,7 +84,7 @@ export function PrivyWalletButton() {
     return (
       <button
         disabled
-        className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium bg-[#A3E4D7]/50 text-[#0A1A14] cursor-not-allowed"
+        className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold uppercase tracking-wide bg-accent/50 text-background cursor-not-allowed border-2 border-accent"
       >
         {buttonContent}
       </button>
@@ -93,13 +93,11 @@ export function PrivyWalletButton() {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className={`inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#A3E4D7] ${
+      <button
+        className={`inline-flex items-center justify-center px-4 py-2 text-sm font-bold uppercase tracking-wide transition-colors border-2 ${
           authenticated
-            ? 'bg-[#143D28] text-[#F5F5F5] hover:bg-[#1E4D38] border border-[#A3E4D7]/30'
-            : 'bg-[#A3E4D7] text-[#0A1A14] hover:bg-[#8CD0C3]'
+            ? 'bg-accent text-background hover:bg-accent/90 border-accent'
+            : 'bg-accent text-background hover:bg-accent/90 border-accent'
         }`}
         onClick={authenticated ? () => setShowDropdown(!showDropdown) : handleLoginClick}
       >
@@ -114,22 +112,17 @@ export function PrivyWalletButton() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         )}
-      </motion.button>
+      </button>
 
       {showDropdown && authenticated && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute right-0 mt-2 w-48 rounded-md bg-[#143D28] py-1 shadow-lg ring-1 ring-[#A3E4D7]/20 z-10"
-        >
+        <div className="absolute right-0 mt-2 w-56 bg-card border-2 border-border z-50">
           {user?.email && (
-            <div className="px-4 py-2 text-xs text-[#F5F5F5]/60 border-b border-[#A3E4D7]/10">
+            <div className="px-4 py-3 text-xs text-muted-foreground border-b-2 border-border font-mono">
               {user.email.address}
             </div>
           )}
-          <motion.button
-            whileHover={{ backgroundColor: 'rgba(163, 228, 215, 0.1)' }}
-            className="flex w-full items-center px-4 py-2 text-sm text-[#F5F5F5] hover:bg-[#A3E4D7]/10"
+          <button
+            className="flex w-full items-center px-4 py-3 text-sm font-bold uppercase tracking-wide text-foreground hover:bg-accent/10 transition-colors"
             onClick={handleLogoutClick}
           >
             <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,8 +134,8 @@ export function PrivyWalletButton() {
               />
             </svg>
             Logout
-          </motion.button>
-        </motion.div>
+          </button>
+        </div>
       )}
     </div>
   )

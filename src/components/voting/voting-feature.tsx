@@ -2,10 +2,7 @@
 
 import { usePrivy } from '@privy-io/react-auth'
 import { useWallets } from '@privy-io/react-auth/solana'
-import { PrivyWalletButton } from '../solana/privy-wallet-button'
-// Comment out HiddenPollsList import
-import { PollsList /* HiddenPollsList */ } from './voting-ui'
-import { PollCreatorDashboard } from '../poll/poll-creator-dashboard'
+import { PollsList } from './voting-ui'
 import Link from 'next/link'
 import { useState, useMemo } from 'react'
 
@@ -22,62 +19,33 @@ export function VotingFeature() {
     console.log('[VotingFeature] Wallet found:', wallets[0])
     return wallets[0] // First wallet is the embedded Solana wallet
   }, [ready, authenticated, walletsReady, wallets])
-  // Add filter state
+
   const [filter, setFilter] = useState<'active' | 'future' | 'past'>('active')
-  const [view, setView] = useState<'all' | 'dashboard'>('all')
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Header */}
-      <div className="border-b-2 border-border bg-card">
-        <div className="max-w-7xl mx-auto px-6 md:px-8 py-12 md:py-16">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div>
-              <h1 className="brutalist-title text-5xl md:text-6xl lg:text-7xl text-foreground mb-3">
-                {view === 'all' ? 'POLLS' : 'DASHBOARD'}
-              </h1>
-              <p className="text-muted-foreground text-lg font-mono">
-                {view === 'all' ? 'Vote on active polls' : 'Manage your polls'}
-              </p>
-            </div>
-            {authenticated && solanaWallet ? (
-              <Link href="/create-poll" className="border-2 border-accent bg-accent text-background px-8 py-4 font-bold text-sm uppercase tracking-wide hover:bg-accent/90 transition-colors flex items-center gap-2">
-                <span>+</span>
-                <span>CREATE POLL</span>
-              </Link>
-            ) : (
-              <PrivyWalletButton />
-            )}
-          </div>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto px-6 md:px-8 py-8">
-        {/* View Toggle Tabs */}
-        {authenticated && solanaWallet && (
-          <div className="flex gap-6 mb-8 border-b-2 border-border">
-            <button
-              onClick={() => setView('all')}
-              className={`px-6 py-4 font-bold text-sm uppercase tracking-wide transition-colors border-b-2 -mb-[2px] ${
-                view === 'all'
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              ALL POLLS
-            </button>
-            <button
-              onClick={() => setView('dashboard')}
-              className={`px-6 py-4 font-bold text-sm uppercase tracking-wide transition-colors border-b-2 -mb-[2px] ${
-                view === 'dashboard'
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              MY DASHBOARD
-            </button>
-          </div>
-        )}
+        {/* Single Row: Filter + Create Button */}
+        <div className="flex items-center justify-end gap-4 mb-8">
+          {/* Filter Dropdown */}
+          <button
+            onClick={() => setFilter(filter === 'active' ? 'future' : filter === 'future' ? 'past' : 'active')}
+            className="px-6 py-3 border-2 border-border text-foreground font-bold text-sm uppercase tracking-wide hover:border-accent transition-colors flex items-center gap-2"
+          >
+            <span>{filter === 'active' ? 'ACTIVE' : filter === 'future' ? 'FUTURE' : 'PAST'}</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {/* Create Poll Button */}
+          {authenticated && solanaWallet && (
+            <Link href="/create-poll" className="border-2 border-accent bg-accent text-background px-6 py-3 font-bold text-sm uppercase tracking-wide hover:bg-accent/90 transition-colors flex items-center gap-2">
+              <span>+</span>
+              <span>CREATE POLL</span>
+            </Link>
+          )}
+        </div>
 
         {!authenticated && (
           <div className="mb-8 bg-accent/10 border-2 border-accent p-8 text-center">
@@ -88,53 +56,8 @@ export function VotingFeature() {
           </div>
         )}
 
-        {/* Content Area */}
-        {view === 'all' ? (
-          <>
-            {/* Filter Buttons */}
-            <div className="flex justify-between items-center mb-8">
-              <p className="text-muted-foreground font-mono text-sm uppercase tracking-wide">
-                Filter by status
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setFilter('active')}
-                  className={`px-6 py-3 font-bold text-sm uppercase tracking-wide border-2 transition-colors ${
-                    filter === 'active'
-                      ? 'bg-accent border-accent text-background'
-                      : 'border-border text-foreground hover:border-accent'
-                  }`}
-                >
-                  ACTIVE
-                </button>
-                <button
-                  onClick={() => setFilter('future')}
-                  className={`px-6 py-3 font-bold text-sm uppercase tracking-wide border-2 transition-colors ${
-                    filter === 'future'
-                      ? 'bg-accent border-accent text-background'
-                      : 'border-border text-foreground hover:border-accent'
-                  }`}
-                >
-                  FUTURE
-                </button>
-                <button
-                  onClick={() => setFilter('past')}
-                  className={`px-6 py-3 font-bold text-sm uppercase tracking-wide border-2 transition-colors ${
-                    filter === 'past'
-                      ? 'bg-accent border-accent text-background'
-                      : 'border-border text-foreground hover:border-accent'
-                  }`}
-                >
-                  PAST
-                </button>
-              </div>
-            </div>
-
-            <PollsList filter={filter} />
-          </>
-        ) : (
-          <PollCreatorDashboard />
-        )}
+        {/* Polls Grid */}
+        <PollsList filter={filter} />
       </div>
     </div>
   )
