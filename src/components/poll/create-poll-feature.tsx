@@ -203,27 +203,23 @@ export default function CreatePollFeature() {
 
   if (!authenticated || !solanaWallet) {
     return (
-      <div className="min-h-screen bg-[#2c5446] flex items-center justify-center">
-        <div className="max-w-md px-6">
-          <div className="bg-[#3a6b5a] rounded-xl border border-[#2c5446] overflow-hidden">
-            <div className="p-8 text-center">
-              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-5">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[#0A1A14]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              </div>
-              <h1 className="text-2xl font-bold text-[#F5F5DC] mb-3">Create a New Poll</h1>
-              <div className="w-16 h-0.5 bg-[#2c5446] mx-auto mb-5"></div>
-              <p className="text-[#F5F5DC] mb-8 px-4">
-                Login with your email to create a new poll on the Solana blockchain.
-              </p>
-              <div className="mb-3">
-                <PrivyWalletButton />
-              </div>
-              <p className="text-sm text-[#F5F5DC]/70">
-                Login with your email to get started
-              </p>
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-md w-full">
+          <div className="bg-card border-2 border-border p-12 text-center">
+            <h1 className="brutalist-title text-5xl text-foreground mb-6">
+              CREATE
+              <br />
+              <span className="text-stroke">POLL</span>
+            </h1>
+            <p className="text-muted-foreground mb-8">
+              Connect your wallet to create a new poll on the Solana blockchain.
+            </p>
+            <div className="mb-6">
+              <PrivyWalletButton />
             </div>
+            <p className="text-sm text-muted-foreground font-mono">
+              SECURE • TRANSPARENT • ON-CHAIN
+            </p>
           </div>
         </div>
       </div>
@@ -269,118 +265,99 @@ export default function CreatePollFeature() {
         confirmText="Create Poll"
         cancelText="Review Again"
       />
-    <div className="min-h-screen bg-[#2c5446] py-12">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-10">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center mr-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#0A1A14]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              </div>
-              <h1 className="text-3xl font-bold text-[#F5F5DC]">Create a New Poll</h1>
-            </div>
-            <div className="text-sm font-medium text-[#F5F5DC] flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              Step {stage} of 2
+    <div className="min-h-screen bg-background py-16 px-6 md:px-8">
+      <div className="max-w-3xl mx-auto">
+        <div className="mb-12">
+          <div className="flex justify-between items-start mb-8">
+            <div>
+              <h1 className="brutalist-title text-4xl md:text-5xl text-foreground mb-2">
+                CREATE POLL
+              </h1>
+              <p className="text-muted-foreground font-mono text-sm">
+                Step {stage} of 2
+              </p>
             </div>
           </div>
-          <div className="mt-4 relative">
-            <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-[#2c5446]">
-              <div style={{ width: `${stage * 50}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-[#0A1A14] justify-center bg-[#A3E4D7] transition-all duration-500"></div>
+          <div className="relative">
+            <div className="h-1 bg-border mb-6">
+              <div style={{ width: `${stage * 50}%` }} className="h-full bg-accent transition-all duration-500"></div>
             </div>
-            <div className="flex justify-between">
-              <div className={`text-sm flex items-center ${stage >= 1 ? 'font-medium text-[#F5F5DC]' : 'text-[#F5F5DC]/50'}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                Poll Details
+            <div className="flex justify-between font-bold text-sm">
+              <div className={stage >= 1 ? 'text-accent' : 'text-muted-foreground'}>
+                01. POLL DETAILS
               </div>
-              <div className={`text-sm flex items-center ${stage >= 2 ? 'font-medium text-[#F5F5DC]' : 'text-[#F5F5DC]/50'}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                Add Candidates
+              <div className={stage >= 2 ? 'text-accent' : 'text-muted-foreground'}>
+                02. ADD CANDIDATES
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-[#3a6b5a] border border-[#2c5446] overflow-hidden rounded-lg">
+        <div className="bg-card border-2 border-border">
           {stage === 1 && (
-            <div className="px-4 py-5 sm:p-6">
-              <div className="flex items-center mb-4">
-                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center mr-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#0A1A14]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-[#F5F5DC]">Poll Details</h2>
-              </div>
+            <div className="p-8">
+              <h2 className="text-2xl font-bold text-foreground mb-6 pb-4 border-b-2 border-border">
+                POLL DETAILS
+              </h2>
               <CreatePollForm onPollCreated={handlePollCreated} />
             </div>
           )}
 
           {stage === 2 && (
-            <div className="px-4 py-5 sm:p-6">
-              <div className="flex items-center mb-4">
-                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center mr-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#0A1A14]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-[#F5F5DC]">Add Candidates</h2>
-              </div>
+            <div className="p-8">
+              <h2 className="text-2xl font-bold text-foreground mb-6 pb-4 border-b-2 border-border">
+                ADD CANDIDATES
+              </h2>
 
-              <div className="bg-[#2c5446]/20 border border-[#2c5446] text-[#F5F5DC] px-4 py-3 rounded-lg text-sm mb-6">
-                <p className="font-medium mb-1">Important Notice:</p>
-                <p>Add at least two candidates to your poll. You cannot add or remove candidates after the poll starts.</p>
+              <div className="bg-accent/10 border-2 border-accent p-6 text-foreground mb-6">
+                <p className="font-bold mb-2">Important Notice</p>
+                <p className="text-sm text-muted-foreground">
+                  Add at least two candidates to your poll. You cannot add or remove candidates after the poll starts.
+                </p>
               </div>
 
               {errorMessage && (
-                <div className="bg-red-900/20 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm mb-4">
+                <div className="bg-destructive/10 border-2 border-destructive text-destructive p-4 text-sm mb-6">
                   {errorMessage}
                 </div>
               )}
 
-              <div className="space-y-4">
-                <div className="flex">
+              <div className="space-y-6">
+                <div className="flex gap-4">
                   <input
                     type="text"
                     placeholder="Enter candidate name"
-                    className="flex-grow px-4 py-2.5 bg-[#2c5446] border border-[#2c5446] rounded-l-lg text-[#F5F5DC] text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#A3E4D7] focus:border-transparent placeholder-[#F5F5DC]/50"
+                    className="flex-grow px-4 py-3 bg-background border-2 border-border text-foreground focus:outline-none focus:border-accent placeholder-muted-foreground"
                     value={newCandidate}
                     onChange={(e) => setNewCandidate(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddCandidate()}
                   />
                   <button
                     onClick={handleAddCandidate}
-                    className="px-4 py-2.5 bg-white text-[#0A1A14] text-sm font-medium rounded-r-lg hover:bg-[#A3E4D7] hover:text-[#0A1A14] transition-colors focus:outline-none focus:ring-2 focus:ring-[#A3E4D7] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-3 bg-accent border-2 border-accent text-background font-bold hover:bg-accent/90 transition-colors"
                   >
-                    Add
+                    ADD
                   </button>
                 </div>
 
                 {candidates.length > 0 ? (
-                  <div className="bg-[#2c5446] border border-[#2c5446] rounded-lg p-4">
-                    <h3 className="text-[#F5F5DC] text-sm font-medium mb-3">Candidates ({candidates.length})</h3>
-                    <ul className="space-y-2">
+                  <div className="border-2 border-border p-6">
+                    <h3 className="text-foreground font-bold mb-4">CANDIDATES ({candidates.length})</h3>
+                    <ul className="space-y-3">
                       {candidates.map((candidate, index) => (
-                        <li key={index} className="flex justify-between items-center p-3 bg-[#2c5446] text-[#F5F5DC] rounded-lg border border-[#2c5446]">
-                          <div className="flex items-center">
-                            <div className="w-6 h-6 bg-white text-[#0A1A14] rounded-full flex items-center justify-center font-medium text-sm mr-3">
+                        <li key={index} className="flex justify-between items-center p-4 bg-background border-2 border-border">
+                          <div className="flex items-center gap-4">
+                            <div className="w-8 h-8 bg-accent text-background flex items-center justify-center font-bold text-sm">
                               {index + 1}
                             </div>
-                            <span>{candidate}</span>
+                            <span className="font-bold text-foreground">{candidate}</span>
                           </div>
                           <button
                             onClick={() => handleRemoveCandidate(index)}
-                            className="text-[#F5F5DC]/70 hover:text-red-400 p-1 rounded"
+                            className="text-muted-foreground hover:text-destructive p-2 border-2 border-transparent hover:border-destructive transition-colors"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                           </button>
                         </li>
@@ -388,37 +365,38 @@ export default function CreatePollFeature() {
                     </ul>
                   </div>
                 ) : (
-                  <div className="bg-[#2c5446] border border-[#2c5446] text-[#F5F5DC]/70 rounded-lg py-8 px-4 text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-3 text-[#F5F5DC]/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    <p>No candidates added yet. Add at least two candidates.</p>
+                  <div className="border-2 border-border text-muted-foreground py-12 px-6 text-center">
+                    <p className="font-mono text-sm">
+                      NO CANDIDATES YET
+                      <br />
+                      <span className="text-xs">Add at least two candidates to continue</span>
+                    </p>
                   </div>
                 )}
               </div>
 
-              <div className="mt-8 flex items-center justify-between">
+              <div className="mt-10 flex items-center justify-between pt-6 border-t-2 border-border">
                 <button
                   onClick={() => {
                     setStage(1);
                     setErrorMessage(null);
                   }}
-                  className="px-5 py-2.5 bg-transparent text-[#F5F5DC] border border-[#2c5446] text-sm font-medium rounded-lg hover:bg-[#2c5446] transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A3E4D7]"
+                  className="px-6 py-3 border-2 border-border text-foreground font-bold hover:bg-foreground hover:text-background transition-colors"
                 >
-                  Back
+                  ← BACK
                 </button>
                 <button
                   onClick={handleFinishClick}
-                  className="px-5 py-2.5 bg-white text-[#0A1A14] text-sm font-medium rounded-lg hover:bg-[#A3E4D7] hover:text-[#0A1A14] transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A3E4D7] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 bg-accent border-2 border-accent text-background font-bold hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={candidates.length < 2 || isSubmitting}
                 >
                   {isSubmitting ? (
-                    <div className="flex items-center">
-                      <div className="animate-spin h-4 w-4 mr-2 border-b-2 border-[#0A1A14] rounded-full"></div>
-                      <span>Creating Poll...</span>
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin h-4 w-4 border-b-2 border-background"></div>
+                      <span>CREATING...</span>
                     </div>
                   ) : (
-                    'Create Poll'
+                    'CREATE POLL'
                   )}
                 </button>
               </div>

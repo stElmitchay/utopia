@@ -1,8 +1,8 @@
 import './globals.css'
 import {ClusterProvider} from '@/components/cluster/cluster-data-access'
-import {UiLayout} from '@/components/ui/ui-layout'
 import {ReactQueryProvider} from './react-query-provider'
 import {PrivySolanaProvider} from '@/components/solana/privy-provider'
+import {LayoutWrapper} from './layout-wrapper'
 
 export const metadata = {
   title: 'Utopia - Decentralized Voting',
@@ -26,21 +26,14 @@ export const metadata = {
   }
 }
 
-// Navigation links
-const links: { label: string; path: string }[] = [
-  { label: 'Home', path: '/' },
-  { label: 'Voting', path: '/voting' },
-  { label: 'Create Poll', path: '/create-poll' },
-]
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body>
         <ReactQueryProvider>
           <ClusterProvider>
             <PrivySolanaProvider>
-              <UiLayout links={links}>{children}</UiLayout>
+              <LayoutWrapper>{children}</LayoutWrapper>
             </PrivySolanaProvider>
           </ClusterProvider>
         </ReactQueryProvider>
