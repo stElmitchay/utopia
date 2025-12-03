@@ -6,8 +6,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { useVotingProgram } from '../voting/voting-data-access'
 import { VotingSection } from '../voting/voting-ui'
 import { PollResultsCard } from '../ui/poll-results-card'
+import { ConfirmationModal } from '../ui/confirmation-modal'
 import { toast } from 'react-hot-toast'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 interface PollDetailProps {
   poll: any
@@ -16,19 +18,26 @@ interface PollDetailProps {
 }
 
 export function PollDetail({ poll, publicKey, onUpdate }: PollDetailProps) {
+  const router = useRouter()
   const { ready, authenticated } = usePrivy()
   const { ready: walletsReady, wallets } = useWallets()
-  const { getPollCandidates } = useVotingProgram()
+  const { getPollCandidates, getPollImageUrl, softDeletePoll } = useVotingProgram()
 
   const [candidates, setCandidates] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showResults, setShowResults] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const solanaWallet = useMemo(() => {
     if (!ready || !authenticated || !walletsReady || wallets.length === 0) return null
     return wallets[0]
   }, [ready, authenticated, walletsReady, wallets])
+
+  const isCreator = useMemo(() => {
+    if (!authenticated || wallets.length === 0 || !poll.pollAdmin) return false
+    return wallets[0]?.address === poll.pollAdmin.toString()
+  }, [authenticated, wallets, poll.pollAdmin])
 
   // Load candidates
   useEffect(() => {
@@ -102,11 +111,43 @@ export function PollDetail({ poll, publicKey, onUpdate }: PollDetailProps) {
   }
 
   const defaultImage = 'https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=1600&q=80'
+  const customImage = getPollImageUrl(poll.pollId.toNumber())
+  const displayImage = customImage || defaultImage
   const totalVotes = candidates.reduce((sum, c) => sum + Number(c.account.candidateVotes), 0)
   const status = getPollStatus()
 
+  const handleDeletePoll = async () => {
+    try {
+      await softDeletePoll.mutateAsync({ pollId: poll.pollId.toNumber() })
+      setShowDeleteConfirm(false)
+      toast.success('Poll deleted successfully')
+      router.push('/voting')
+    } catch (error) {
+      console.error('Error deleting poll:', error)
+    }
+  }
+
   return (
     <>
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeletePoll}
+        title="Delete Poll"
+        message={
+          <div className="space-y-2">
+            <p>Are you sure you want to delete this poll?</p>
+            <p className="text-lg font-bold text-red-400">{poll.description}</p>
+            <p className="text-xs mt-3 text-[#F5F5DC]/60">
+              This will hide the poll from the public list. The on-chain data will remain intact.
+            </p>
+          </div>
+        }
+        confirmText={softDeletePoll.isPending ? 'Deleting...' : 'Delete Poll'}
+        cancelText="Cancel"
+      />
+
       {/* Results Modal */}
       <PollResultsCard
         isOpen={showResults}
@@ -143,7 +184,7 @@ export function PollDetail({ poll, publicKey, onUpdate }: PollDetailProps) {
               {/* Main Image */}
               <div className="relative border-2 border-border overflow-hidden">
                 <img
-                  src={defaultImage}
+                  src={displayImage}
                   alt={poll.description}
                   className="w-full h-96 lg:h-[600px] object-cover"
                 />
@@ -179,6 +220,20 @@ export function PollDetail({ poll, publicKey, onUpdate }: PollDetailProps) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
                     View Results
+                  </button>
+                )}
+
+                {/* Delete Button - Only visible to poll creator */}
+                {isCreator && (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="px-6 py-3 bg-transparent border-2 border-red-500/50 text-red-500 font-bold text-sm uppercase tracking-wide hover:border-red-500 hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"
+                    title="Delete Poll"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete
                   </button>
                 )}
               </div>

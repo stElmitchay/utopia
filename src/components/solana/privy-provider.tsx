@@ -29,8 +29,10 @@ export function PrivySolanaProvider({ children }: { children: ReactNode }) {
       config={{
         appearance: {
           theme: 'dark',
-          accentColor: '#A3E4D7',
+          accentColor: '#4ADE80', // Matches brand green accent (142 76% 59%)
           logo: '/favicon.svg',
+          landingHeader: 'Login to UTOPIA',
+          loginMessage: 'Decentralized voting on Solana',
         },
         loginMethods: ['email'],
         embeddedWallets: {

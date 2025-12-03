@@ -83,6 +83,36 @@ body {
     }
 }
 
+/* Privy Modal Customization - Brutalist Style */
+#privy-modal-content,
+#privy-dialog-content {
+  border-radius: 0 !important;
+  border: 2px solid hsl(var(--border)) !important;
+}
+
+#privy-modal-content button,
+#privy-dialog-content button {
+  border-radius: 0 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+#privy-modal-content input,
+#privy-dialog-content input {
+  border-radius: 0 !important;
+  border: 2px solid hsl(var(--border)) !important;
+}
+
+#privy-modal-content h1,
+#privy-modal-content h2,
+#privy-dialog-content h1,
+#privy-dialog-content h2 {
+  font-weight: 900 !important;
+  letter-spacing: -0.02em !important;
+  text-transform: uppercase !important;
+}
+
 @layer components {
   .brutalist-title {
     font-weight: 900;

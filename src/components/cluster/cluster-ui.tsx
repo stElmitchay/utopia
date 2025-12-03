@@ -37,11 +37,14 @@ export function ClusterChecker({ children }: { children: ReactNode }) {
   
   if (query.isError || !query.data) {
     return (
-      <div className="alert alert-warning text-warning-content/80 rounded-none flex justify-center">
-        <span>
+      <div className="bg-yellow-500/10 border-2 border-yellow-500/40 p-4 flex items-center justify-center gap-4">
+        <span className="text-foreground">
           Error connecting to cluster <strong>{cluster.name}</strong>
         </span>
-        <button className="btn btn-xs btn-neutral" onClick={() => query.refetch()}>
+        <button
+          className="px-3 py-1 text-sm font-bold uppercase tracking-wide bg-card border-2 border-border hover:border-accent transition-colors"
+          onClick={() => query.refetch()}
+        >
           Refresh
         </button>
       </div>
@@ -142,19 +145,19 @@ export function ClusterUiModal({ hideModal, show }: { hideModal: () => void; sho
       <input
         type="text"
         placeholder="Name"
-        className="input input-bordered w-full"
+        className="w-full px-4 py-2 bg-background border-2 border-border text-foreground focus:outline-none focus:border-accent"
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
       <input
         type="text"
         placeholder="Endpoint"
-        className="input input-bordered w-full"
+        className="w-full px-4 py-2 bg-background border-2 border-border text-foreground focus:outline-none focus:border-accent"
         value={endpoint}
         onChange={(e) => setEndpoint(e.target.value)}
       />
       <select
-        className="select select-bordered w-full"
+        className="w-full px-4 py-2 bg-background border-2 border-border text-foreground focus:outline-none focus:border-accent"
         value={network}
         onChange={(e) => setNetwork(e.target.value as ClusterNetwork)}
       >
@@ -171,35 +174,39 @@ export function ClusterUiTable() {
   const { clusters, setCluster, deleteCluster } = useCluster()
   return (
     <div className="overflow-x-auto">
-      <table className="table border-4 border-separate border-base-300">
+      <table className="w-full border-2 border-border">
         <thead>
-          <tr>
-            <th>Name/ Network / Endpoint</th>
-            <th className="text-center">Actions</th>
+          <tr className="border-b-2 border-border bg-card">
+            <th className="text-left p-4 font-bold text-foreground uppercase text-sm tracking-wide">Name / Network / Endpoint</th>
+            <th className="text-center p-4 font-bold text-foreground uppercase text-sm tracking-wide">Actions</th>
           </tr>
         </thead>
         <tbody>
           {clusters.map((item) => (
-            <tr key={item.name} className={item?.active ? 'bg-base-200' : ''}>
-              <td className="space-y-2">
+            <tr key={item.name} className={`border-b border-border ${item?.active ? 'bg-accent/5' : ''}`}>
+              <td className="p-4 space-y-2">
                 <div className="whitespace-nowrap space-x-2">
-                  <span className="text-xl">
+                  <span className="text-xl font-bold text-foreground">
                     {item?.active ? (
                       item.name
                     ) : (
-                      <button title="Select cluster" className="link link-secondary" onClick={() => setCluster(item)}>
+                      <button
+                        title="Select cluster"
+                        className="text-accent hover:underline"
+                        onClick={() => setCluster(item)}
+                      >
                         {item.name}
                       </button>
                     )}
                   </span>
                 </div>
-                <span className="text-xs">Network: {item.network ?? 'custom'}</span>
-                <div className="whitespace-nowrap text-gray-500 text-xs">{item.endpoint}</div>
+                <span className="text-xs text-muted-foreground">Network: {item.network ?? 'custom'}</span>
+                <div className="whitespace-nowrap text-muted-foreground text-xs font-mono">{item.endpoint}</div>
               </td>
-              <td className="space-x-2 whitespace-nowrap text-center">
+              <td className="p-4 space-x-2 whitespace-nowrap text-center">
                 <button
                   disabled={item?.active}
-                  className="btn btn-xs btn-default btn-outline"
+                  className="p-2 border-2 border-border hover:border-destructive hover:text-destructive transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => {
                     if (!window.confirm('Are you sure?')) return
                     deleteCluster(item)

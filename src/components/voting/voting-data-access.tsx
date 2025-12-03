@@ -19,6 +19,8 @@ import { useCluster } from '../cluster/cluster-data-access'
 import { usePrivyAnchorProvider } from '../solana/privy-anchor-provider'
 import { useTransactionToast } from '../ui/ui-layout'
 import * as anchor from '@coral-xyz/anchor'
+import { getPollsMetadata, getDeletedPollIds, softDeletePoll as softDeletePollService, restorePoll as restorePollService } from '@/lib/polls-service'
+import { PollMetadata } from '@/lib/supabase'
 
 export function useVotingProgram() {
   const { cluster } = useCluster()
@@ -153,14 +155,32 @@ export function useVotingProgram() {
     },
   })
 
-  // Query all polls (excluding hidden ones)
+  // Query for deleted poll IDs from Supabase
+  const deletedPollsQuery = useQuery({
+    queryKey: ['voting', 'deletedPolls'],
+    queryFn: async () => {
+      try {
+        return await getDeletedPollIds()
+      } catch (error) {
+        console.error('Error fetching deleted poll IDs:', error)
+        return []
+      }
+    },
+    staleTime: 60000, // 1 minute
+  })
+
+  // Query all polls (excluding hidden and deleted ones)
   const polls = useQuery({
     queryKey: ['voting', 'polls', { cluster }],
     queryFn: async () => {
       try {
         const accounts = await (program.account as any).poll.all()
         const hiddenPolls = getHiddenPolls()
-        return accounts.filter((account: any) => !hiddenPolls.includes(account.account.pollId.toNumber()))
+        const deletedPolls = deletedPollsQuery.data || []
+        return accounts.filter((account: any) => {
+          const pollId = account.account.pollId.toNumber()
+          return !hiddenPolls.includes(pollId) && !deletedPolls.includes(pollId)
+        })
       } catch (error) {
         console.error('Error fetching polls:', error)
         return []
@@ -171,6 +191,79 @@ export function useVotingProgram() {
     refetchOnMount: false, // Don't refetch when component mounts
     refetchOnReconnect: false, // Don't refetch when reconnecting
   })
+
+  // Query for polls metadata from Supabase (includes images)
+  const pollsMetadata = useQuery({
+    queryKey: ['voting', 'pollsMetadata', { pollIds: polls.data?.map((p: any) => p.account.pollId.toNumber()) }],
+    queryFn: async () => {
+      if (!polls.data || polls.data.length === 0) return []
+      try {
+        const pollIds = polls.data.map((p: any) => p.account.pollId.toNumber())
+        return await getPollsMetadata(pollIds)
+      } catch (error) {
+        console.error('Error fetching polls metadata:', error)
+        return []
+      }
+    },
+    enabled: !!polls.data && polls.data.length > 0,
+    staleTime: 60000, // 1 minute
+  })
+
+  // Query ALL candidates at once for better performance
+  const allCandidates = useQuery({
+    queryKey: ['voting', 'allCandidates', { cluster }],
+    queryFn: async () => {
+      try {
+        const accounts = await (program.account as any).candidate.all()
+        // Build a map of pollId -> candidates for fast lookup
+        const candidatesByPoll: Record<number, any[]> = {}
+
+        // Get all poll IDs from our polls data for validation
+        const pollIds = polls.data?.map((p: any) => p.account.pollId.toNumber()) || []
+
+        for (const account of accounts) {
+          // Try to match candidate to a poll
+          for (const pollId of pollIds) {
+            const pollIdBuffer = Buffer.from(new BN(pollId).toArray('le', 8))
+            const candidateNameBuffer = Buffer.from(account.account.candidateName)
+            const [candidatePda] = PublicKey.findProgramAddressSync(
+              [pollIdBuffer, candidateNameBuffer],
+              programId
+            )
+
+            if (candidatePda.equals(account.publicKey)) {
+              if (!candidatesByPoll[pollId]) {
+                candidatesByPoll[pollId] = []
+              }
+              candidatesByPoll[pollId].push(account)
+              break
+            }
+          }
+        }
+
+        return candidatesByPoll
+      } catch (error) {
+        console.error('Error fetching all candidates:', error)
+        return {}
+      }
+    },
+    enabled: !!polls.data && polls.data.length > 0,
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: false,
+  })
+
+  // Fast lookup for candidates by poll ID (uses cached data)
+  const getCandidatesForPoll = (pollId: number) => {
+    return allCandidates.data?.[pollId] || []
+  }
+
+  // Get total votes for a poll from cached candidates
+  const getTotalVotesForPoll = (pollId: number): number => {
+    const candidates = allCandidates.data?.[pollId] || []
+    return candidates.reduce((total: number, c: any) =>
+      total + (c.account.candidateVotes?.toNumber() || 0), 0
+    )
+  }
 
   // Function to manually refetch polls
   const refetchPolls = () => {
@@ -765,10 +858,60 @@ export function useVotingProgram() {
     return solanaWallet.address === pollCreator.toString()
   }
 
+  // Soft delete poll (Supabase)
+  const softDeletePoll = useMutation({
+    mutationKey: ['voting', 'softDeletePoll'],
+    mutationFn: async ({ pollId }: { pollId: number }) => {
+      if (!walletPublicKey) throw new Error('Wallet not connected')
+      const success = await softDeletePollService(pollId, walletPublicKey.toString())
+      if (!success) throw new Error('Failed to delete poll')
+      return success
+    },
+    onSuccess: () => {
+      toast.success('Poll deleted successfully')
+      deletedPollsQuery.refetch()
+      polls.refetch()
+    },
+    onError: (error: any) => {
+      console.error('Error deleting poll:', error)
+      toast.error('Failed to delete poll: ' + error.message)
+    },
+  })
+
+  // Restore soft-deleted poll (Supabase)
+  const restorePoll = useMutation({
+    mutationKey: ['voting', 'restorePoll'],
+    mutationFn: async ({ pollId }: { pollId: number }) => {
+      if (!walletPublicKey) throw new Error('Wallet not connected')
+      const success = await restorePollService(pollId, walletPublicKey.toString())
+      if (!success) throw new Error('Failed to restore poll')
+      return success
+    },
+    onSuccess: () => {
+      toast.success('Poll restored successfully')
+      deletedPollsQuery.refetch()
+      polls.refetch()
+    },
+    onError: (error: any) => {
+      console.error('Error restoring poll:', error)
+      toast.error('Failed to restore poll: ' + error.message)
+    },
+  })
+
+  // Helper to get image URL for a poll from metadata
+  const getPollImageUrl = (pollId: number): string | null => {
+    const metadata = pollsMetadata.data?.find((m: PollMetadata) => m.poll_id === pollId)
+    return metadata?.image_url || null
+  }
+
   return {
     program,
     programId,
     polls,
+    pollsMetadata,
+    allCandidates,
+    getCandidatesForPoll,
+    getTotalVotesForPoll,
     initializePoll,
     hidePoll,
     initializeCandidate,
@@ -784,6 +927,10 @@ export function useVotingProgram() {
     isPollActive,
     isUserAdmin,
     getUserVoteRecords,
-    getUserCreatedPolls
+    getUserCreatedPolls,
+    softDeletePoll,
+    restorePoll,
+    getPollImageUrl,
+    deletedPollsQuery
   }
 } 

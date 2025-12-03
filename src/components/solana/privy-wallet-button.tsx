@@ -6,11 +6,13 @@ import { useCallback, useMemo, useState, useRef, useEffect } from 'react'
 import { ellipsify } from '../ui/ui-layout'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
+import { getProfile } from '@/lib/profile-service'
 
 export function PrivyWalletButton() {
   const { ready, authenticated, user, login, logout } = usePrivy()
   const { ready: walletsReady, wallets } = useWallets()
   const [showDropdown, setShowDropdown] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Get the Solana embedded wallet
@@ -29,6 +31,19 @@ export function PrivyWalletButton() {
     console.log('Selected wallet:', wallet)
     return wallet
   }, [ready, authenticated, walletsReady, wallets, user])
+
+  // Fetch user profile to get avatar
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      if (solanaWallet?.address) {
+        const profile = await getProfile(solanaWallet.address)
+        setAvatarUrl(profile?.avatar_url || null)
+      } else {
+        setAvatarUrl(null)
+      }
+    }
+    fetchAvatar()
+  }, [solanaWallet?.address])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -88,10 +103,18 @@ export function PrivyWalletButton() {
         onClick={() => setShowDropdown(!showDropdown)}
         className="inline-flex items-center justify-center gap-2 p-2 bg-accent/10 text-accent border-2 border-accent/30 hover:border-accent transition-colors"
       >
-        {/* Profile Icon */}
-        <div className="w-6 h-6 bg-accent text-background flex items-center justify-center text-xs font-bold">
-          {user?.email?.address?.[0]?.toUpperCase() || solanaWallet?.address?.[0]?.toUpperCase() || 'U'}
-        </div>
+        {/* Profile Icon / Avatar */}
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt="Profile"
+            className="w-6 h-6 object-cover"
+          />
+        ) : (
+          <div className="w-6 h-6 bg-accent text-background flex items-center justify-center text-xs font-bold">
+            {user?.email?.address?.[0]?.toUpperCase() || solanaWallet?.address?.[0]?.toUpperCase() || 'U'}
+          </div>
+        )}
         <svg
           className={`w-3 h-3 transition-transform ${showDropdown ? 'rotate-180' : ''}`}
           fill="none"
@@ -114,9 +137,17 @@ export function PrivyWalletButton() {
             {/* User Info Header */}
             <div className="px-4 py-3 border-b-2 border-border">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-accent text-background flex items-center justify-center text-lg font-bold flex-shrink-0">
-                  {user?.email?.address?.[0]?.toUpperCase() || solanaWallet?.address?.[0]?.toUpperCase() || 'U'}
-                </div>
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt="Profile"
+                    className="w-10 h-10 object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-accent text-background flex items-center justify-center text-lg font-bold flex-shrink-0">
+                    {user?.email?.address?.[0]?.toUpperCase() || solanaWallet?.address?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                )}
                 <div className="min-w-0">
                   {user?.email && (
                     <p className="text-sm text-foreground font-medium truncate">
@@ -132,6 +163,17 @@ export function PrivyWalletButton() {
 
             {/* Menu Items */}
             <div className="py-1">
+              <Link
+                href="/profile"
+                onClick={() => setShowDropdown(false)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-sm font-bold uppercase tracking-wide text-foreground hover:bg-accent/10 transition-colors"
+              >
+                <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Profile
+              </Link>
+
               <Link
                 href="/my-polls"
                 onClick={() => setShowDropdown(false)}

@@ -9,10 +9,12 @@ import { PrivyWalletButton } from '@/components/solana/privy-wallet-button'
 import { ClusterUiSelect } from '@/components/cluster/cluster-ui'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
+import { usePrivy } from '@privy-io/react-auth'
 
 export function LayoutWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { authenticated } = usePrivy()
 
   // Landing page gets its own navigation
   if (pathname === '/') {
@@ -124,6 +126,21 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
                 >
                   My Polls
                 </Link>
+
+                {/* Profile Link - Mobile (only when authenticated) */}
+                {authenticated && (
+                  <Link
+                    href="/profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`block py-3 px-4 text-sm font-bold uppercase tracking-wide transition-colors ${
+                      pathname === '/profile'
+                        ? 'text-accent bg-accent/10'
+                        : 'text-foreground hover:text-accent hover:bg-accent/5'
+                    }`}
+                  >
+                    Profile
+                  </Link>
+                )}
 
                 {/* Create Button - Mobile */}
                 <Link

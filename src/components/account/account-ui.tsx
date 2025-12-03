@@ -22,7 +22,7 @@ export function AccountBalance({ address }: { address: PublicKey }) {
 
   return (
     <div>
-      <h1 className="text-5xl font-bold cursor-pointer" onClick={() => query.refetch()}>
+      <h1 className="text-5xl font-bold cursor-pointer text-foreground" onClick={() => query.refetch()}>
         {query.data ? <BalanceSol balance={query.data} /> : '...'} SOL
       </h1>
     </div>
@@ -53,12 +53,12 @@ export function AccountBalanceCheck({ address }: { address: PublicKey }) {
   }
   if (query.isError || !query.data) {
     return (
-      <div className="alert alert-warning text-warning-content/80 rounded-none flex justify-center">
-        <span>
+      <div className="bg-yellow-500/10 border-2 border-yellow-500/40 p-4 flex items-center justify-center gap-4">
+        <span className="text-foreground">
           You are connected to <strong>{cluster.name}</strong> but your account is not found on this cluster.
         </span>
         <button
-          className="btn btn-xs btn-neutral"
+          className="px-3 py-1 text-sm font-bold uppercase tracking-wide bg-card border-2 border-border hover:border-accent transition-colors"
           onClick={() => mutation.mutateAsync(1).catch((err) => console.log(err))}
         >
           Request Airdrop
@@ -91,19 +91,22 @@ export function AccountButtons({ address }: { address: PublicKey }) {
       <div className="space-x-2">
         <button
           disabled={cluster.network?.includes('mainnet')}
-          className="btn btn-xs lg:btn-md btn-outline"
+          className="px-4 py-2 text-sm font-bold uppercase tracking-wide border-2 border-border hover:border-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={() => setShowAirdropModal(true)}
         >
           Airdrop
         </button>
         <button
           disabled={!isOwnWallet}
-          className="btn btn-xs lg:btn-md btn-outline"
+          className="px-4 py-2 text-sm font-bold uppercase tracking-wide border-2 border-border hover:border-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={() => setShowSendModal(true)}
         >
           Send
         </button>
-        <button className="btn btn-xs lg:btn-md btn-outline" onClick={() => setShowReceiveModal(true)}>
+        <button
+          className="px-4 py-2 text-sm font-bold uppercase tracking-wide border-2 border-border hover:border-accent transition-colors"
+          onClick={() => setShowReceiveModal(true)}
+        >
           Receive
         </button>
       </div>
@@ -124,13 +127,13 @@ export function AccountTokens({ address }: { address: PublicKey }) {
     <div className="space-y-2">
       <div className="justify-between">
         <div className="flex justify-between">
-          <h2 className="text-2xl font-bold">Token Accounts</h2>
+          <h2 className="text-2xl font-bold text-foreground">Token Accounts</h2>
           <div className="space-x-2">
             {query.isLoading ? (
-              <span className="loading loading-spinner"></span>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent"></div>
             ) : (
               <button
-                className="btn btn-sm btn-outline"
+                className="p-2 border-2 border-border hover:border-accent transition-colors"
                 onClick={async () => {
                   await query.refetch()
                   await client.invalidateQueries({
@@ -144,31 +147,35 @@ export function AccountTokens({ address }: { address: PublicKey }) {
           </div>
         </div>
       </div>
-      {query.isError && <pre className="alert alert-error">Error: {query.error?.message.toString()}</pre>}
+      {query.isError && (
+        <div className="bg-destructive/10 border-2 border-destructive p-4 text-destructive">
+          Error: {query.error?.message.toString()}
+        </div>
+      )}
       {query.isSuccess && (
         <div>
           {query.data.length === 0 ? (
-            <div>No token accounts found.</div>
+            <div className="text-muted-foreground">No token accounts found.</div>
           ) : (
-            <table className="table border-4 rounded-lg border-separate border-base-300">
+            <table className="w-full border-2 border-border">
               <thead>
-                <tr>
-                  <th>Public Key</th>
-                  <th>Mint</th>
-                  <th className="text-right">Balance</th>
+                <tr className="border-b-2 border-border bg-card">
+                  <th className="text-left p-4 font-bold text-foreground uppercase text-sm tracking-wide">Public Key</th>
+                  <th className="text-left p-4 font-bold text-foreground uppercase text-sm tracking-wide">Mint</th>
+                  <th className="text-right p-4 font-bold text-foreground uppercase text-sm tracking-wide">Balance</th>
                 </tr>
               </thead>
               <tbody>
                 {items?.map(({ account, pubkey }) => (
-                  <tr key={pubkey.toString()}>
-                    <td>
+                  <tr key={pubkey.toString()} className="border-b border-border">
+                    <td className="p-4">
                       <div className="flex space-x-2">
                         <span className="font-mono">
                           <ExplorerLink label={ellipsify(pubkey.toString())} path={`account/${pubkey.toString()}`} />
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td className="p-4">
                       <div className="flex space-x-2">
                         <span className="font-mono">
                           <ExplorerLink
@@ -178,16 +185,19 @@ export function AccountTokens({ address }: { address: PublicKey }) {
                         </span>
                       </div>
                     </td>
-                    <td className="text-right">
-                      <span className="font-mono">{account.data.parsed.info.tokenAmount.uiAmount}</span>
+                    <td className="text-right p-4">
+                      <span className="font-mono text-foreground">{account.data.parsed.info.tokenAmount.uiAmount}</span>
                     </td>
                   </tr>
                 ))}
 
                 {(query.data?.length ?? 0) > 5 && (
                   <tr>
-                    <td colSpan={4} className="text-center">
-                      <button className="btn btn-xs btn-outline" onClick={() => setShowAll(!showAll)}>
+                    <td colSpan={4} className="text-center p-4">
+                      <button
+                        className="px-4 py-2 text-sm font-bold uppercase tracking-wide border-2 border-border hover:border-accent transition-colors"
+                        onClick={() => setShowAll(!showAll)}
+                      >
                         {showAll ? 'Show Less' : 'Show All'}
                       </button>
                     </td>
@@ -214,57 +224,69 @@ export function AccountTransactions({ address }: { address: PublicKey }) {
   return (
     <div className="space-y-2">
       <div className="flex justify-between">
-        <h2 className="text-2xl font-bold">Transaction History</h2>
+        <h2 className="text-2xl font-bold text-foreground">Transaction History</h2>
         <div className="space-x-2">
           {query.isLoading ? (
-            <span className="loading loading-spinner"></span>
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent"></div>
           ) : (
-            <button className="btn btn-sm btn-outline" onClick={() => query.refetch()}>
+            <button
+              className="p-2 border-2 border-border hover:border-accent transition-colors"
+              onClick={() => query.refetch()}
+            >
               <IconRefresh size={16} />
             </button>
           )}
         </div>
       </div>
-      {query.isError && <pre className="alert alert-error">Error: {query.error?.message.toString()}</pre>}
+      {query.isError && (
+        <div className="bg-destructive/10 border-2 border-destructive p-4 text-destructive">
+          Error: {query.error?.message.toString()}
+        </div>
+      )}
       {query.isSuccess && (
         <div>
           {query.data.length === 0 ? (
-            <div>No transactions found.</div>
+            <div className="text-muted-foreground">No transactions found.</div>
           ) : (
-            <table className="table border-4 rounded-lg border-separate border-base-300">
+            <table className="w-full border-2 border-border">
               <thead>
-                <tr>
-                  <th>Signature</th>
-                  <th className="text-right">Slot</th>
-                  <th>Block Time</th>
-                  <th className="text-right">Status</th>
+                <tr className="border-b-2 border-border bg-card">
+                  <th className="text-left p-4 font-bold text-foreground uppercase text-sm tracking-wide">Signature</th>
+                  <th className="text-right p-4 font-bold text-foreground uppercase text-sm tracking-wide">Slot</th>
+                  <th className="text-left p-4 font-bold text-foreground uppercase text-sm tracking-wide">Block Time</th>
+                  <th className="text-right p-4 font-bold text-foreground uppercase text-sm tracking-wide">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {items?.map((item) => (
-                  <tr key={item.signature}>
-                    <th className="font-mono">
+                  <tr key={item.signature} className="border-b border-border">
+                    <td className="p-4 font-mono">
                       <ExplorerLink path={`tx/${item.signature}`} label={ellipsify(item.signature, 8)} />
-                    </th>
-                    <td className="font-mono text-right">
+                    </td>
+                    <td className="font-mono text-right p-4">
                       <ExplorerLink path={`block/${item.slot}`} label={item.slot.toString()} />
                     </td>
-                    <td>{new Date((item.blockTime ?? 0) * 1000).toISOString()}</td>
-                    <td className="text-right">
+                    <td className="p-4 text-muted-foreground">{new Date((item.blockTime ?? 0) * 1000).toISOString()}</td>
+                    <td className="text-right p-4">
                       {item.err ? (
-                        <div className="badge badge-error" title={JSON.stringify(item.err)}>
+                        <span className="px-2 py-1 text-xs font-bold bg-destructive/10 text-destructive border border-destructive/30" title={JSON.stringify(item.err)}>
                           Failed
-                        </div>
+                        </span>
                       ) : (
-                        <div className="badge badge-success">Success</div>
+                        <span className="px-2 py-1 text-xs font-bold bg-accent/10 text-accent border border-accent/30">
+                          Success
+                        </span>
                       )}
                     </td>
                   </tr>
                 ))}
                 {(query.data?.length ?? 0) > 5 && (
                   <tr>
-                    <td colSpan={4} className="text-center">
-                      <button className="btn btn-xs btn-outline" onClick={() => setShowAll(!showAll)}>
+                    <td colSpan={4} className="text-center p-4">
+                      <button
+                        className="px-4 py-2 text-sm font-bold uppercase tracking-wide border-2 border-border hover:border-accent transition-colors"
+                        onClick={() => setShowAll(!showAll)}
+                      >
                         {showAll ? 'Show Less' : 'Show All'}
                       </button>
                     </td>
@@ -286,8 +308,8 @@ function BalanceSol({ balance }: { balance: number }) {
 function ModalReceive({ hide, show, address }: { hide: () => void; show: boolean; address: PublicKey }) {
   return (
     <AppModal title="Receive" hide={hide} show={show}>
-      <p>Receive assets by sending them to your public key:</p>
-      <code>{address.toString()}</code>
+      <p className="text-muted-foreground">Receive assets by sending them to your public key:</p>
+      <code className="block p-4 bg-background border-2 border-border text-foreground font-mono text-sm break-all">{address.toString()}</code>
     </AppModal>
   )
 }
@@ -311,7 +333,7 @@ function ModalAirdrop({ hide, show, address }: { hide: () => void; show: boolean
         step="any"
         min="1"
         placeholder="Amount"
-        className="input input-bordered w-full"
+        className="w-full px-4 py-2 bg-background border-2 border-border text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
       />
@@ -328,7 +350,7 @@ function ModalSend({ hide, show, address }: { hide: () => void; show: boolean; a
   const [amount, setAmount] = useState('1')
 
   if (!address || !authenticated || !solanaWallet) {
-    return <div>Wallet not connected</div>
+    return <div className="text-muted-foreground">Wallet not connected</div>
   }
 
   return (
@@ -351,7 +373,7 @@ function ModalSend({ hide, show, address }: { hide: () => void; show: boolean; a
         disabled={mutation.isPending}
         type="text"
         placeholder="Destination"
-        className="input input-bordered w-full"
+        className="w-full px-4 py-2 bg-background border-2 border-border text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
         value={destination}
         onChange={(e) => setDestination(e.target.value)}
       />
@@ -361,7 +383,7 @@ function ModalSend({ hide, show, address }: { hide: () => void; show: boolean; a
         step="any"
         min="1"
         placeholder="Amount"
-        className="input input-bordered w-full"
+        className="w-full px-4 py-2 bg-background border-2 border-border text-foreground focus:outline-none focus:border-accent disabled:opacity-50"
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
       />

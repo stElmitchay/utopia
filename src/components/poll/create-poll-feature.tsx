@@ -18,6 +18,8 @@ import { getVotingapplicationProgramId } from '@project/anchor'
 import { ConfirmationModal } from '../ui/confirmation-modal'
 import { useCluster } from '../cluster/cluster-data-access'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
+import { uploadPollImage } from '@/lib/storage-service'
+import { createPollMetadata } from '@/lib/polls-service'
 
 // Types
 interface PollDetails {
@@ -752,19 +754,15 @@ function LivePreview({
         <div className="space-y-2">
           {candidates.length > 0 ? (
             candidates.map((candidate) => (
-              <motion.div
+              <div
                 key={candidate.id}
-                layout
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
                 className="p-3 bg-background border-2 border-border flex items-center justify-between"
               >
                 <span className="text-foreground font-medium">{candidate.name}</span>
                 <button className="px-4 py-1 bg-accent/10 text-accent text-xs font-bold uppercase tracking-wide border border-accent/30">
                   Vote
                 </button>
-              </motion.div>
+              </div>
             ))
           ) : (
             <div className="p-6 border-2 border-dashed border-border text-center">
@@ -791,6 +789,93 @@ function LivePreview({
   )
 }
 
+// Image Upload Component
+function ImageUpload({
+  image,
+  imagePreview,
+  onImageChange,
+  onImageRemove,
+}: {
+  image: File | null
+  imagePreview: string | null
+  onImageChange: (file: File) => void
+  onImageRemove: () => void
+}) {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be less than 5MB')
+        return
+      }
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+        toast.error('Image must be JPEG, PNG, WebP, or GIF')
+        return
+      }
+      onImageChange(file)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be less than 5MB')
+        return
+      }
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+        toast.error('Image must be JPEG, PNG, WebP, or GIF')
+        return
+      }
+      onImageChange(file)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <label className="text-xs text-muted-foreground uppercase tracking-wide block">
+        Poll Image (Optional)
+      </label>
+      {imagePreview ? (
+        <div className="relative">
+          <img
+            src={imagePreview}
+            alt="Poll preview"
+            className="w-full h-40 object-cover border-2 border-border"
+          />
+          <button
+            onClick={onImageRemove}
+            className="absolute top-2 right-2 p-1 bg-background/80 border border-border hover:bg-destructive hover:text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+        <label
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+          className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-border hover:border-accent cursor-pointer transition-colors bg-background"
+        >
+          <svg className="w-8 h-8 text-muted-foreground mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span className="text-sm text-muted-foreground">Click or drag to upload</span>
+          <span className="text-xs text-muted-foreground mt-1">Max 5MB</span>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </label>
+      )}
+    </div>
+  )
+}
+
 // Interactive Canvas Component
 function InteractiveCanvas({
   initialDetails,
@@ -801,7 +886,7 @@ function InteractiveCanvas({
 }: {
   initialDetails?: PollDetails
   initialCandidates?: string[]
-  onSubmit: (details: PollDetails, candidates: string[]) => void
+  onSubmit: (details: PollDetails, candidates: string[], image: File | null) => void
   onBack: () => void
   isSubmitting: boolean
 }) {
@@ -811,6 +896,22 @@ function InteractiveCanvas({
   const [candidates, setCandidates] = useState<Candidate[]>(() =>
     (initialCandidates || []).map((name, i) => ({ id: `candidate-${i}`, name }))
   )
+  const [pollImage, setPollImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+
+  const handleImageChange = (file: File) => {
+    setPollImage(file)
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleImageRemove = () => {
+    setPollImage(null)
+    setImagePreview(null)
+  }
 
   const now = new Date()
   const defaultStart = new Date(now.getTime() + 60 * 60 * 1000) // 1 hour from now
@@ -891,7 +992,8 @@ function InteractiveCanvas({
         pollStart: Math.floor(startDate.getTime() / 1000),
         pollEnd: Math.floor(endDate.getTime() / 1000),
       },
-      candidates.map(c => c.name)
+      candidates.map(c => c.name),
+      pollImage
     )
   }
 
@@ -910,9 +1012,10 @@ function InteractiveCanvas({
   // Completed step summary component
   const CompletedStepSummary = ({ step, title, summary, onEdit }: { step: number; title: string; summary: string; onEdit: () => void }) => (
     <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
       className="bg-card border-2 border-accent/30 p-4 flex items-center gap-4"
     >
       <div className="w-8 h-8 bg-accent text-background flex items-center justify-center font-bold text-sm flex-shrink-0">
@@ -1036,10 +1139,10 @@ function InteractiveCanvas({
             {activeStep === 1 && (
               <motion.div
                 key="step1"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
                 className="bg-card border-2 border-border p-6"
               >
                 <div className="flex items-center gap-3 mb-4">
@@ -1072,6 +1175,16 @@ function InteractiveCanvas({
                   </span>
                 </div>
 
+                {/* Image Upload Section */}
+                <div className="mt-6 pt-6 border-t-2 border-border">
+                  <ImageUpload
+                    image={pollImage}
+                    imagePreview={imagePreview}
+                    onImageChange={handleImageChange}
+                    onImageRemove={handleImageRemove}
+                  />
+                </div>
+
                 <button
                   onClick={handleNextStep}
                   disabled={!step1Complete}
@@ -1089,10 +1202,10 @@ function InteractiveCanvas({
             {activeStep === 2 && (
               <motion.div
                 key="step2"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
                 className="bg-card border-2 border-border p-6"
               >
                 <div className="flex items-center gap-3 mb-4">
@@ -1202,10 +1315,10 @@ function InteractiveCanvas({
             {activeStep === 3 && (
               <motion.div
                 key="step3"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
                 className="bg-card border-2 border-border p-6"
               >
                 <div className="flex items-center gap-3 mb-4">
@@ -1252,9 +1365,7 @@ function InteractiveCanvas({
 
           {/* Clear Form Button - Bottom */}
           {(description || candidates.length > 0) && (
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+            <button
               onClick={handleClearForm}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold uppercase tracking-wide text-muted-foreground border-2 border-dashed border-border hover:border-destructive hover:text-destructive hover:bg-destructive/5 transition-colors"
             >
@@ -1262,7 +1373,7 @@ function InteractiveCanvas({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
               <span>Clear Form & Start Over</span>
-            </motion.button>
+            </button>
           )}
         </div>
 
@@ -1299,6 +1410,7 @@ export default function CreatePollFeature() {
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [finalDetails, setFinalDetails] = useState<PollDetails | null>(null)
   const [finalCandidates, setFinalCandidates] = useState<string[]>([])
+  const [finalImage, setFinalImage] = useState<File | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const programId = getVotingapplicationProgramId(cluster.network as any)
 
@@ -1323,9 +1435,10 @@ export default function CreatePollFeature() {
     setMode('canvas')
   }
 
-  const handleCanvasSubmit = (details: PollDetails, candidates: string[]) => {
+  const handleCanvasSubmit = (details: PollDetails, candidates: string[], image: File | null) => {
     setFinalDetails(details)
     setFinalCandidates(candidates)
+    setFinalImage(image)
     setShowConfirmation(true)
   }
 
@@ -1406,6 +1519,27 @@ export default function CreatePollFeature() {
       const versionedTransaction = new VersionedTransaction(messageV0)
 
       await signAndSendTransaction(versionedTransaction)
+
+      // Upload image and save metadata to Supabase
+      let imageUrl: string | null = null
+      if (finalImage) {
+        toast.loading('Uploading poll image...', { id: 'upload-image' })
+        const uploadResult = await uploadPollImage(finalDetails.pollId, finalImage)
+        if (uploadResult.url) {
+          imageUrl = uploadResult.url
+          toast.dismiss('upload-image')
+        } else {
+          toast.dismiss('upload-image')
+          console.warn('Failed to upload image:', uploadResult.error)
+        }
+      }
+
+      // Save poll metadata to Supabase
+      await createPollMetadata(
+        finalDetails.pollId,
+        walletPublicKey.toString(),
+        imageUrl
+      )
 
       toast.success('Poll created successfully!')
       await new Promise(resolve => setTimeout(resolve, 2000))
@@ -1493,6 +1627,18 @@ export default function CreatePollFeature() {
                 </div>
               </div>
             </div>
+
+            {/* Poll Image */}
+            {finalImage && (
+              <div className="bg-background border-2 border-border p-4">
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3">Poll Image</h4>
+                <img
+                  src={URL.createObjectURL(finalImage)}
+                  alt="Poll preview"
+                  className="w-full h-32 object-cover"
+                />
+              </div>
+            )}
 
             {/* Candidates */}
             <div className="bg-background border-2 border-border p-4">

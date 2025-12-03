@@ -12,9 +12,7 @@ export function VotingapplicationCreate() {
 
   return (
     <button
-      className="btn btn-xs lg:btn-md btn-primary"
-      // onClick={() => initialize.mutateAsync(Keypair.generate())}
-      // disabled={initialize.isPending}
+      className="px-4 py-2 bg-accent text-background font-bold text-sm uppercase tracking-wide border-2 border-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
       disabled={true}
       title="This function is not implemented yet"
     >
@@ -27,19 +25,25 @@ export function VotingapplicationList() {
   const { polls, getProgramAccount } = useVotingapplicationProgram()
 
   if (getProgramAccount.isLoading) {
-    return <span className="loading loading-spinner loading-lg"></span>
+    return (
+      <div className="flex justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+      </div>
+    )
   }
   if (!getProgramAccount.data?.value) {
     return (
-      <div className="alert alert-info flex justify-center">
-        <span>Program account not found. Make sure you have deployed the program and are on the correct cluster.</span>
+      <div className="bg-blue-500/10 border-2 border-blue-500/40 p-4 text-center">
+        <span className="text-foreground">Program account not found. Make sure you have deployed the program and are on the correct cluster.</span>
       </div>
     )
   }
   return (
     <div className={'space-y-6'}>
       {polls.isLoading ? (
-        <span className="loading loading-spinner loading-lg"></span>
+        <div className="flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+        </div>
       ) : polls.data?.length ? (
         <div className="grid md:grid-cols-2 gap-4">
           {polls.data?.map((account: any) => (
@@ -48,8 +52,8 @@ export function VotingapplicationList() {
         </div>
       ) : (
         <div className="text-center">
-          <h2 className={'text-2xl'}>No accounts</h2>
-          No accounts found. Create one above to get started.
+          <h2 className={'text-2xl font-bold text-foreground'}>No accounts</h2>
+          <p className="text-muted-foreground">No accounts found. Create one above to get started.</p>
         </div>
       )}
     </div>
@@ -61,30 +65,26 @@ function VotingapplicationCard({ account }: { account: PublicKey }) {
     account,
   });
 
-  // We no longer have these mutations as they were commented out
-  /* const { accountQuery, incrementMutation, setMutation, decrementMutation, closeMutation } = useVotingapplicationProgramAccount({
-    account,
-  }) */
-
-  // Use data from the poll instead
   const pollData = query.data;
 
   return query.isLoading ? (
-    <span className="loading loading-spinner loading-lg"></span>
+    <div className="flex justify-center p-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+    </div>
   ) : (
-    <div className="card card-bordered border-base-300 border-4 text-neutral-content">
-      <div className="card-body items-center text-center">
+    <div className="bg-card border-2 border-border">
+      <div className="p-6 text-center">
         <div className="space-y-6">
-          <h2 className="card-title justify-center text-xl cursor-pointer" onClick={() => query.refetch()}>
+          <h2 className="text-xl font-bold text-foreground cursor-pointer hover:text-accent" onClick={() => query.refetch()}>
             Poll #{pollData?.pollId.toString() || 'Unknown'}
           </h2>
-          <p>{pollData?.description || 'No description'}</p>
-          
+          <p className="text-muted-foreground">{pollData?.description || 'No description'}</p>
+
           <div className="text-center space-y-4">
             <p>
               <ExplorerLink path={`account/${account}`} label={ellipsify(account.toString())} />
             </p>
-            <p>Candidates: {pollData?.candidateAmount.toString() || '0'}</p>
+            <p className="text-sm text-muted-foreground">Candidates: {pollData?.candidateAmount.toString() || '0'}</p>
           </div>
         </div>
       </div>

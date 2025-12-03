@@ -309,6 +309,31 @@ export function VotingSection({
     transactionSignature?: string
   } | null>(null)
 
+  // Check if user has already voted in this poll
+  const existingVote = useMemo(() => {
+    if (!solanaWallet?.address) return null
+
+    // Check localStorage for existing vote
+    const storageKey = `votedPolls_${solanaWallet.address}`
+    const existingVotes = JSON.parse(localStorage.getItem(storageKey) || '[]')
+    const vote = existingVotes.find((v: any) => v.pollId === pollId.toString())
+
+    // Also check processedVotes (the 5-minute check storage)
+    const transactionId = `${pollId}-${solanaWallet.address}`
+    const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
+    const recentVoteTime = processedVotes[transactionId]
+
+    if (vote) {
+      return { candidateName: vote.candidateName, timestamp: vote.timestamp }
+    }
+    if (recentVoteTime) {
+      return { candidateName: null, timestamp: recentVoteTime }
+    }
+    return null
+  }, [solanaWallet?.address, pollId])
+
+  const hasAlreadyVoted = !!existingVote
+
   const handleVoteClick = (candidateName: string) => {
     if (!authenticated || !solanaWallet) {
       toast.error('Please login to vote')
@@ -493,6 +518,25 @@ export function VotingSection({
         </div>
       )}
 
+      {/* Already Voted Notice */}
+      {hasAlreadyVoted && isActive && (
+        <div className="bg-accent/10 border-2 border-accent p-4">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <div>
+              <p className="text-sm font-bold text-foreground uppercase tracking-wide">You&apos;ve Already Voted</p>
+              {existingVote?.candidateName && (
+                <p className="text-xs text-muted-foreground font-mono mt-1">
+                  Your vote: <span className="text-accent font-bold">{existingVote.candidateName}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Candidates List */}
       <div className="space-y-3">
         {candidates.map((candidate, index) => {
@@ -502,31 +546,44 @@ export function VotingSection({
             ? Math.round((voteCount / totalVotes) * 100)
             : 0
 
-          const canVote = isActive && authenticated && solanaWallet && (!voteError) && (solBalance !== null && hasEnoughSol)
+          const canVote = isActive && authenticated && solanaWallet && (!voteError) && (solBalance !== null && hasEnoughSol) && !hasAlreadyVoted
           const isVoting = votingFor === candidateName
           const isLeading = index === 0 && totalVotes > 0
+          const isVotedCandidate = existingVote?.candidateName === candidateName
 
           return (
-            <div key={index} className={`border-2 ${isLeading ? 'border-accent bg-accent/5' : 'border-border bg-card'} p-4`}>
+            <div key={index} className={`border-2 ${isVotedCandidate ? 'border-accent bg-accent/10' : isLeading ? 'border-accent bg-accent/5' : 'border-border bg-card'} p-4`}>
               <div className="flex justify-between items-center mb-3">
                 <div className="flex items-center gap-2">
-                  {isLeading && (
+                  {isLeading && !isVotedCandidate && (
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-accent" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                     </svg>
                   )}
+                  {isVotedCandidate && (
+                    <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
                   <h4 className="text-lg font-bold text-foreground uppercase tracking-wide">{candidateName}</h4>
+                  {isVotedCandidate && (
+                    <span className="text-xs font-bold text-accent uppercase tracking-wide ml-2">(Your Vote)</span>
+                  )}
                 </div>
                 {isActive && (
                   <button
                     onClick={() => handleVoteClick(candidateName)}
                     className={`px-6 py-2 text-sm font-bold uppercase tracking-wide transition-colors border-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      canVote && !isVoting
+                      hasAlreadyVoted
+                        ? 'bg-muted/50 text-muted-foreground border-border cursor-not-allowed'
+                        : canVote && !isVoting
                         ? 'bg-accent text-background border-accent hover:bg-accent/90'
                         : 'bg-muted text-muted-foreground border-border'
                     }`}
-                    disabled={!canVote || vote.isPending || isVoting}
-                    title={!authenticated || !solanaWallet
+                    disabled={!canVote || vote.isPending || isVoting || hasAlreadyVoted}
+                    title={hasAlreadyVoted
+                      ? 'You have already voted in this poll'
+                      : !authenticated || !solanaWallet
                       ? 'Login to vote'
                       : !isActive
                       ? 'Poll is not active'
@@ -539,6 +596,8 @@ export function VotingSection({
                         <div className="animate-spin h-4 w-4 border-b-2 border-background"></div>
                         <span>Voting...</span>
                       </div>
+                    ) : hasAlreadyVoted ? (
+                      'Voted'
                     ) : (
                       'Vote'
                     )}
@@ -578,26 +637,24 @@ export function VotingSection({
 
 // Component to display a poll with its candidates
 export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultExpanded = false }: { poll: any; publicKey: PublicKey; onUpdate: () => void; isHidden?: boolean; defaultExpanded?: boolean }) {
-  const { getPollCandidates } = useVotingProgram()
-  const [candidates, setCandidates] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { getCandidatesForPoll, allCandidates, getPollImageUrl, softDeletePoll, isUserAdmin } = useVotingProgram()
+  const { authenticated } = usePrivy()
+  const { wallets } = useWallets()
   const [showVotingModal, setShowVotingModal] = useState(false)
   const [showResults, setShowResults] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // Load candidates immediately
-  useEffect(() => {
-    const loadCandidates = async () => {
-      try {
-        const candidatesData = await getPollCandidates(poll.pollId.toNumber())
-        setCandidates(candidatesData)
-      } catch (error) {
-        console.error('Error loading candidates:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    loadCandidates()
-  }, [poll.pollId])
+  const isCreator = useMemo(() => {
+    if (!authenticated || wallets.length === 0 || !poll.pollAdmin) return false
+    return wallets[0]?.address === poll.pollAdmin.toString()
+  }, [authenticated, wallets, poll.pollAdmin])
+
+  // Get candidates from batch-loaded data (fast, synchronous)
+  const candidates = useMemo(() => {
+    return getCandidatesForPoll(poll.pollId.toNumber())
+  }, [poll.pollId, allCandidates.data])
+
+  const isLoading = allCandidates.isLoading
 
   const getPollStatus = () => {
     const now = Math.floor(Date.now() / 1000)
@@ -645,13 +702,42 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
   }
 
   const defaultImage = 'https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=800&q=80'
+  const customImage = getPollImageUrl(poll.pollId.toNumber())
+  const displayImage = customImage || defaultImage
   const totalVotes = candidates.reduce((sum, c) => sum + Number(c.account.candidateVotes), 0)
   const status = getPollStatus()
   const candidateNames = candidates.map(c => c.account.candidateName).join(' • ')
   const pollId = poll.pollId.toString()
 
+  const handleDeletePoll = async () => {
+    try {
+      await softDeletePoll.mutateAsync({ pollId: poll.pollId.toNumber() })
+      setShowDeleteConfirm(false)
+    } catch (error) {
+      console.error('Error deleting poll:', error)
+    }
+  }
+
   return (
     <>
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeletePoll}
+        title="Delete Poll"
+        message={
+          <div className="space-y-2">
+            <p>Are you sure you want to delete this poll?</p>
+            <p className="text-lg font-bold text-red-400">{poll.description}</p>
+            <p className="text-xs mt-3 text-[#F5F5DC]/60">
+              This will hide the poll from the public list. The on-chain data will remain intact.
+            </p>
+          </div>
+        }
+        confirmText={softDeletePoll.isPending ? 'Deleting...' : 'Delete Poll'}
+        cancelText="Cancel"
+      />
       {/* Voting Modal */}
       {showVotingModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -741,7 +827,7 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
         <Link href={`/poll/${pollId}`}>
           <div className="relative h-48 overflow-hidden cursor-pointer">
             <img
-              src={defaultImage}
+              src={displayImage}
               alt={poll.description}
               className="w-full h-full object-cover"
             />
@@ -843,6 +929,23 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
             </svg>
             Details
           </Link>
+
+          {/* Delete Button - Only visible to poll creator */}
+          {isCreator && (
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setShowDeleteConfirm(true)
+              }}
+              className="px-4 py-3 text-sm font-bold uppercase tracking-wide transition-colors border-2 border-red-500/50 text-red-500 hover:border-red-500 hover:bg-red-500/10 flex items-center gap-2"
+              title="Delete Poll"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
     </>

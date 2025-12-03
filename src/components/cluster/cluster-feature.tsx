@@ -12,7 +12,10 @@ export default function ClusterFeature() {
     <div>
       <AppHero title="Clusters" subtitle="Manage and select your Solana clusters">
         <ClusterUiModal show={showModal} hideModal={() => setShowModal(false)} />
-        <button className="btn btn-xs lg:btn-md btn-primary" onClick={() => setShowModal(true)}>
+        <button
+          className="px-4 py-2 bg-accent text-background font-bold text-sm uppercase tracking-wide border-2 border-accent hover:bg-accent/90 transition-colors"
+          onClick={() => setShowModal(true)}
+        >
           Add Cluster
         </button>
       </AppHero>
