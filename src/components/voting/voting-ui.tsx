@@ -11,6 +11,7 @@ import { toast } from 'react-hot-toast'
 import { ConfirmationModal } from '../ui/confirmation-modal'
 import { VoteReceipt } from '../ui/vote-receipt'
 import { PollResultsCard } from '../ui/poll-results-card'
+import Link from 'next/link'
 
 // Component to create a new poll
 export function CreatePollForm({ onPollCreated }: { onPollCreated?: (details: any) => void }) {
@@ -310,7 +311,7 @@ export function VotingSection({
 
   const handleVoteClick = (candidateName: string) => {
     if (!authenticated || !solanaWallet) {
-      toast.error('Please login with email to vote')
+      toast.error('Please login to vote')
       return
     }
 
@@ -430,49 +431,39 @@ export function VotingSection({
         />
       )}
 
-    <div className="bg-[#2c5446] rounded-lg border border-[#2c5446] p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium text-[#F5F5DC]">Cast your vote</h3>
-        <div className="text-sm text-[#F5F5DC]/70">
-          <span className="inline-flex items-center">
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    <div className="space-y-4">
+      {/* Warnings & Errors */}
+      {authenticated && solanaWallet && solBalance !== null && !hasEnoughSol && (
+        <div className="bg-yellow-500/10 border-2 border-yellow-500 p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
-            Requires {REQUIRED_SOL_AMOUNT} SOL to vote
-          </span>
+            <div>
+              <p className="text-sm font-bold text-yellow-500 uppercase tracking-wide mb-1">Insufficient Balance</p>
+              <p className="text-xs text-foreground font-mono">
+                You have {solBalance.toFixed(4)} SOL. You need at least {REQUIRED_SOL_AMOUNT} SOL to vote.
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {authenticated && solanaWallet && (
-        <div className="mb-4">
-          {solBalance !== null && !hasEnoughSol && (
-            <div className="p-3 rounded-lg text-sm bg-[#2c5446] text-[#F5F5DC]/70 flex justify-between items-center">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <span>
-                  You have {solBalance.toFixed(4)} SOL. You need at least {REQUIRED_SOL_AMOUNT} SOL to vote.
-                </span>
-              </div>
-            </div>
-          )}
-
-          {voteError && (
-            <div className="bg-red-900/20 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm mt-2">
-              {voteError}
-            </div>
-          )}
+      {voteError && (
+        <div className="bg-red-900/20 border-2 border-red-500/20 text-red-400 px-4 py-3 text-sm font-mono">
+          {voteError}
         </div>
       )}
 
       {(!authenticated || !solanaWallet) && isActive && (
-        <div className="bg-[#2c5446] text-[#F5F5DC]/70 p-3 mb-4 rounded-lg text-sm">
-          Login with email to vote for a candidate
+        <div className="bg-accent/10 border-2 border-accent p-4 text-center">
+          <p className="text-sm font-bold text-foreground uppercase tracking-wide mb-1">Login Required</p>
+          <p className="text-xs text-muted-foreground font-mono">Login to vote for a candidate</p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4">
+      {/* Candidates List */}
+      <div className="space-y-3">
         {candidates.map((candidate, index) => {
           const candidateName = candidate.account.candidateName
           const voteCount = Number(candidate.account.candidateVotes)
@@ -482,48 +473,59 @@ export function VotingSection({
 
           const canVote = isActive && authenticated && solanaWallet && (!voteError) && (solBalance !== null && hasEnoughSol)
           const isVoting = votingFor === candidateName
+          const isLeading = index === 0 && totalVotes > 0
 
           return (
-            <div key={index} className="border border-[#2c5446] rounded-lg p-4">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="text-lg font-medium text-[#F5F5DC]">{candidateName}</h4>
+            <div key={index} className={`border-2 ${isLeading ? 'border-accent bg-accent/5' : 'border-border bg-card'} p-4`}>
+              <div className="flex justify-between items-center mb-3">
                 <div className="flex items-center gap-2">
-                  {isActive && (
-                    <button
-                      onClick={() => handleVoteClick(candidateName)}
-                      className="px-4 py-2 bg-white text-[#0A1A14] text-sm font-medium rounded-lg hover:bg-[#A3E4D7] hover:text-[#0A1A14] transition-colors focus:outline-none focus:ring-2 focus:ring-[#A3E4D7] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!canVote || vote.isPending || isVoting}
-                      title={!authenticated || !solanaWallet
-                        ? 'Login with email to vote'
-                        : !isActive
-                        ? 'Poll is not active'
-                        : voteError
-                        ? 'Voting failed'
-                        : ''}
-                    >
-                      {isVoting ? (
-                        <div className="flex items-center justify-center">
-                          <div className="animate-spin h-4 w-4 mr-2 border-b-2 border-[#0A1A14] rounded-full"></div>
-                          <span>Voting...</span>
-                        </div>
-                      ) : (
-                        'Vote'
-                      )}
-                    </button>
+                  {isLeading && (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-accent" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
                   )}
+                  <h4 className="text-lg font-bold text-foreground uppercase tracking-wide">{candidateName}</h4>
                 </div>
+                {isActive && (
+                  <button
+                    onClick={() => handleVoteClick(candidateName)}
+                    className={`px-6 py-2 text-sm font-bold uppercase tracking-wide transition-colors border-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      canVote && !isVoting
+                        ? 'bg-accent text-background border-accent hover:bg-accent/90'
+                        : 'bg-muted text-muted-foreground border-border'
+                    }`}
+                    disabled={!canVote || vote.isPending || isVoting}
+                    title={!authenticated || !solanaWallet
+                      ? 'Login to vote'
+                      : !isActive
+                      ? 'Poll is not active'
+                      : voteError
+                      ? 'Voting failed'
+                      : ''}
+                  >
+                    {isVoting ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="animate-spin h-4 w-4 border-b-2 border-background"></div>
+                        <span>Voting...</span>
+                      </div>
+                    ) : (
+                      'Vote'
+                    )}
+                  </button>
+                )}
               </div>
 
+              {/* Progress Bar */}
               <div className="space-y-2">
-                <div className="h-2 w-full bg-[#2c5446] rounded-full overflow-hidden">
+                <div className="h-3 w-full bg-background border-2 border-border overflow-hidden">
                   <div
-                    className="h-full bg-[#A3E4D7] transition-all duration-300"
+                    className={`h-full ${isLeading ? 'bg-accent' : 'bg-muted'} transition-all duration-500`}
                     style={{ width: `${votePercentage}%` }}
                   ></div>
                 </div>
-                <div className="flex justify-between text-sm text-[#F5F5DC]">
-                  <span>{voteCount} votes</span>
-                  <span>{votePercentage}%</span>
+                <div className="flex justify-between text-xs font-mono font-bold">
+                  <span className="text-foreground">{voteCount} votes</span>
+                  <span className="text-muted-foreground">{votePercentage}%</span>
                 </div>
               </div>
             </div>
@@ -531,10 +533,11 @@ export function VotingSection({
         })}
       </div>
 
-      <div className="mt-6 pt-4 border-t border-[#2c5446]">
-        <div className="flex justify-between text-sm font-medium text-[#F5F5DC] mb-2">
-          <span>Total Votes</span>
-          <span>{totalVotes}</span>
+      {/* Total Votes Summary */}
+      <div className="bg-card border-2 border-border p-4">
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide font-mono">Total Votes Cast</span>
+          <span className="text-2xl font-bold text-accent">{totalVotes}</span>
         </div>
       </div>
     </div>
@@ -544,21 +547,11 @@ export function VotingSection({
 
 // Component to display a poll with its candidates
 export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultExpanded = false }: { poll: any; publicKey: PublicKey; onUpdate: () => void; isHidden?: boolean; defaultExpanded?: boolean }) {
-  const { ready, authenticated } = usePrivy()
-  const { ready: walletsReady, wallets } = useWallets()
-
-  const solanaWallet = useMemo(() => {
-    if (!ready || !authenticated || !walletsReady || wallets.length === 0) return null
-    return wallets[0] // First wallet is the embedded Solana wallet
-  }, [ready, authenticated, walletsReady, wallets])
-
-  const { getPollCandidates, hidePoll, setPollActive, isPollActive, isUserAdmin, closePollEarly } = useVotingProgram()
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded)
+  const { getPollCandidates } = useVotingProgram()
   const [candidates, setCandidates] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [showVotingModal, setShowVotingModal] = useState(false)
   const [showResults, setShowResults] = useState(false)
-  const [showVoting, setShowVoting] = useState(false)
-  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
 
   // Load candidates immediately
   useEffect(() => {
@@ -574,16 +567,6 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
     }
     loadCandidates()
   }, [poll.pollId])
-
-  const handleClosePollEarly = async () => {
-    try {
-      await closePollEarly.mutateAsync({ pollId: poll.pollId.toNumber() })
-      setShowCloseConfirm(false)
-      onUpdate()
-    } catch (error) {
-      console.error('Error closing poll:', error)
-    }
-  }
 
   const getPollStatus = () => {
     const now = Math.floor(Date.now() / 1000)
@@ -619,46 +602,33 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
     return `${Math.floor(timeRemaining / 60)}m remaining`
   }
 
-  const handleCardClick = () => {
+  const handleActionClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
     const status = getPollStatus()
-    if (status === 'ENDED') {
+    if (status === 'LIVE') {
+      setShowVotingModal(true)
+    } else if (status === 'ENDED') {
       setShowResults(true)
-    } else if (status === 'LIVE') {
-      setShowVoting(true)
-    } else {
-      setShowVoting(true) // Show details for upcoming polls
     }
   }
 
   const defaultImage = 'https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=800&q=80'
   const totalVotes = candidates.reduce((sum, c) => sum + Number(c.account.candidateVotes), 0)
   const status = getPollStatus()
-  const isAdmin = isUserAdmin(poll.creator)
   const candidateNames = candidates.map(c => c.account.candidateName).join(' • ')
+  const pollId = poll.pollId.toString()
 
   return (
     <>
-      {/* Results Modal */}
-      <PollResultsCard
-        isOpen={showResults}
-        onClose={() => setShowResults(false)}
-        pollId={poll.pollId.toNumber()}
-        pollDescription={poll.description}
-        candidates={candidates.map(c => ({
-          name: c.account.candidateName,
-          votes: Number(c.account.candidateVotes)
-        }))}
-        totalVotes={totalVotes}
-      />
-
-      {/* Voting Modal - Full Details */}
-      {showVoting && (
+      {/* Voting Modal */}
+      {showVotingModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-screen items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/70" onClick={() => setShowVoting(false)} />
+            <div className="fixed inset-0 bg-black/70" onClick={() => setShowVotingModal(false)} />
             <div className="relative bg-card border-2 border-border max-w-3xl w-full p-6">
               <button
-                onClick={() => setShowVoting(false)}
+                onClick={() => setShowVotingModal(false)}
                 className="absolute top-4 right-4 text-muted-foreground hover:text-foreground border-2 border-border p-1 hover:border-accent"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -687,92 +657,81 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
                 </div>
               ) : candidates.length > 0 ? (
-                <>
-                  <VotingSection
-                    pollId={poll.pollId.toNumber()}
-                    pollDescription={poll.description}
-                    candidates={candidates}
-                    isActive={status === 'LIVE'}
-                    onUpdate={onUpdate}
-                  />
-
-                  {isAdmin && status !== 'ENDED' && (
-                    <div className="mt-6">
-                      <button
-                        onClick={() => {
-                          setShowVoting(false)
-                          setShowCloseConfirm(true)
-                        }}
-                        className="w-full px-4 py-3 bg-red-500/20 border-2 border-red-500 text-red-500 text-sm font-bold uppercase tracking-wide hover:bg-red-500/30 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Close Poll Early
-                      </button>
-                    </div>
-                  )}
-                </>
+                <VotingSection
+                  pollId={poll.pollId.toNumber()}
+                  pollDescription={poll.description}
+                  candidates={candidates}
+                  isActive={status === 'LIVE'}
+                  onUpdate={() => {
+                    onUpdate()
+                    setShowVotingModal(false)
+                  }}
+                />
               ) : (
                 <div className="text-center py-8 bg-muted/20 border-2 border-border">
                   <p className="text-foreground font-bold uppercase tracking-wide mb-1">No candidates yet</p>
                   <p className="text-sm text-muted-foreground font-mono">Candidates will be added soon</p>
                 </div>
               )}
+
+              {/* View Full Details Link */}
+              <div className="mt-6 pt-4 border-t-2 border-border">
+                <Link
+                  href={`/poll/${pollId}`}
+                  className="text-sm text-accent hover:text-accent/80 font-mono font-bold uppercase tracking-wide flex items-center gap-2"
+                  onClick={() => setShowVotingModal(false)}
+                >
+                  View Full Poll Details
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Close Poll Confirmation */}
-      <ConfirmationModal
-        isOpen={showCloseConfirm}
-        onClose={() => setShowCloseConfirm(false)}
-        onConfirm={handleClosePollEarly}
-        isLoading={closePollEarly.isPending}
-        title="Close Poll Early?"
-        message={
-          <div className="space-y-2">
-            <p>Are you sure you want to close this poll now?</p>
-            <p className="text-sm text-muted-foreground">
-              This will immediately end voting and finalize the results. This action cannot be undone.
-            </p>
-          </div>
-        }
-        confirmText="Close Poll"
-        cancelText="Cancel"
-        confirmButtonClass="bg-red-500 text-white hover:bg-red-600"
+      {/* Results Modal */}
+      <PollResultsCard
+        isOpen={showResults}
+        onClose={() => setShowResults(false)}
+        pollId={poll.pollId.toNumber()}
+        pollDescription={poll.description}
+        candidates={candidates.map(c => ({
+          name: c.account.candidateName,
+          votes: Number(c.account.candidateVotes)
+        }))}
+        totalVotes={totalVotes}
       />
 
-      {/* Poll Card */}
-      <div
-        className="bg-card border-2 border-border overflow-hidden cursor-pointer hover:border-accent transition-all group"
-        onClick={handleCardClick}
-      >
-        {/* Image Section */}
-        <div className="relative h-48 overflow-hidden">
-          <img
-            src={defaultImage}
-            alt={poll.description}
-            className="w-full h-full object-cover"
-          />
+      <div className="bg-card border-2 border-border overflow-hidden hover:border-accent transition-all group">
+        {/* Image Section - Click to view details */}
+        <Link href={`/poll/${pollId}`}>
+          <div className="relative h-48 overflow-hidden cursor-pointer">
+            <img
+              src={defaultImage}
+              alt={poll.description}
+              className="w-full h-full object-cover"
+            />
 
-          {/* Status Badge */}
-          <div className={`absolute top-4 right-4 px-3 py-1 border-2 font-bold text-xs uppercase tracking-wide ${
-            status === 'LIVE' ? 'bg-accent border-accent text-background' :
-            status === 'ENDED' ? 'bg-red-500 border-red-500 text-white' :
-            'bg-yellow-500 border-yellow-500 text-black'
-          }`}>
-            {status}
-          </div>
+            {/* Status Badge */}
+            <div className={`absolute top-4 right-4 px-3 py-1 border-2 font-bold text-xs uppercase tracking-wide ${
+              status === 'LIVE' ? 'bg-accent border-accent text-background' :
+              status === 'ENDED' ? 'bg-red-500 border-red-500 text-white' :
+              'bg-yellow-500 border-yellow-500 text-black'
+            }`}>
+              {status}
+            </div>
 
-          {/* Title Overlay */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-            <h3 className="text-white font-bold text-lg uppercase tracking-wide line-clamp-2">
-              {poll.description}
-            </h3>
+            {/* Title Overlay */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+              <h3 className="text-white font-bold text-lg uppercase tracking-wide line-clamp-2">
+                {poll.description}
+              </h3>
+            </div>
           </div>
-        </div>
+        </Link>
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 border-t-2 border-border">
@@ -804,11 +763,12 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
           </div>
         </div>
 
-        {/* Action Button */}
-        <div className="p-4 border-t-2 border-border">
+        {/* Action Buttons */}
+        <div className="p-4 border-t-2 border-border flex gap-3">
+          {/* Main Action Button */}
           <button
-            onClick={handleCardClick}
-            className={`w-full px-4 py-3 text-sm font-bold uppercase tracking-wide transition-colors border-2 flex items-center justify-center gap-2 ${
+            onClick={handleActionClick}
+            className={`flex-1 px-4 py-3 text-sm font-bold uppercase tracking-wide transition-colors border-2 flex items-center justify-center gap-2 ${
               status === 'LIVE'
                 ? 'bg-accent text-background border-accent hover:bg-accent/90'
                 : status === 'ENDED'
@@ -841,6 +801,17 @@ export function PollCard({ poll, publicKey, onUpdate, isHidden = false, defaultE
               </>
             )}
           </button>
+
+          {/* View Details Link - Always visible */}
+          <Link
+            href={`/poll/${pollId}`}
+            className="px-4 py-3 text-sm font-bold uppercase tracking-wide transition-colors border-2 border-border text-muted-foreground hover:border-accent hover:text-foreground flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Details
+          </Link>
         </div>
       </div>
     </>

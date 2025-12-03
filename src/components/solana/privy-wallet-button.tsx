@@ -75,7 +75,7 @@ export function PrivyWalletButton() {
 
     return (
       <div className="flex items-center">
-        <span>Login with Email</span>
+        <span>Login</span>
       </div>
     )
   }, [ready, authenticated, solanaWallet, formattedAddress])

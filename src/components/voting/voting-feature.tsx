@@ -49,9 +49,9 @@ export function VotingFeature() {
 
         {!authenticated && (
           <div className="mb-8 bg-accent/10 border-2 border-accent p-8 text-center">
-            <p className="font-bold text-lg mb-2 uppercase tracking-wide">Connect Wallet</p>
+            <p className="font-bold text-lg mb-2 uppercase tracking-wide">Login</p>
             <p className="text-sm text-muted-foreground font-mono">
-              Login with your email to vote on polls and create new ones.
+              Login to vote on polls and create new ones.
             </p>
           </div>
         )}
