@@ -29,6 +29,7 @@ export interface PollMetadata {
   poll_id: number
   creator_wallet: string
   image_url: string | null
+  credits_per_vote: number
   is_deleted: boolean
   created_at: string
   updated_at: string

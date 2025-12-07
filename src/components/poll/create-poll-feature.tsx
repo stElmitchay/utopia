@@ -28,6 +28,7 @@ interface PollDetails {
   pollStart: number
   pollEnd: number
   imageUrl?: string
+  creditsPerVote: number
 }
 
 interface Candidate {
@@ -445,6 +446,7 @@ function AIAssistant({
         description,
         pollStart: Math.floor(startDate.getTime() / 1000),
         pollEnd: Math.floor(endDate.getTime() / 1000),
+        creditsPerVote: 10,
       },
       candidates,
     }
@@ -923,6 +925,7 @@ function InteractiveCanvas({
   const [endDate, setEndDate] = useState(() =>
     initialDetails ? new Date(initialDetails.pollEnd * 1000) : defaultEnd
   )
+  const [creditsPerVote, setCreditsPerVote] = useState(initialDetails?.creditsPerVote || 10)
 
   // Current active step (1 = title, 2 = candidates, 3 = schedule)
   const [activeStep, setActiveStep] = useState(() => {
@@ -991,6 +994,7 @@ function InteractiveCanvas({
         description: description.trim(),
         pollStart: Math.floor(startDate.getTime() / 1000),
         pollEnd: Math.floor(endDate.getTime() / 1000),
+        creditsPerVote,
       },
       candidates.map(c => c.name),
       pollImage
@@ -1340,6 +1344,52 @@ function InteractiveCanvas({
                   onEndChange={setEndDate}
                 />
 
+                {/* Credits Per Vote */}
+                <div className="mt-6 pt-6 border-t-2 border-border space-y-4">
+                  <div>
+                    <label className="text-sm font-bold text-foreground uppercase tracking-wide block mb-2">
+                      Credits Per Vote
+                    </label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      How many credits will voters need to cast a vote?
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min="1"
+                      max="1000"
+                      value={creditsPerVote}
+                      onChange={(e) => setCreditsPerVote(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-32 px-4 py-3 bg-background border-2 border-border text-foreground text-center text-lg font-bold focus:outline-none focus:border-accent"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm text-foreground">
+                        Voters will spend <span className="font-bold text-accent">{creditsPerVote} credits</span> per vote
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Higher costs may reduce spam but lower participation
+                      </p>
+                    </div>
+                  </div>
+                  {/* Quick presets */}
+                  <div className="flex flex-wrap gap-2">
+                    {[5, 10, 20, 50].map((preset) => (
+                      <button
+                        key={preset}
+                        onClick={() => setCreditsPerVote(preset)}
+                        className={`px-3 py-1 text-xs font-bold uppercase tracking-wide border-2 transition-colors ${
+                          creditsPerVote === preset
+                            ? 'border-accent bg-accent/10 text-accent'
+                            : 'border-border text-muted-foreground hover:border-accent/50 hover:text-accent'
+                        }`}
+                      >
+                        {preset} credits
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting || !allComplete}
@@ -1424,6 +1474,7 @@ export default function CreatePollFeature() {
       description: template.defaultDescription,
       pollStart: Math.floor(startDate.getTime() / 1000),
       pollEnd: Math.floor(endDate.getTime() / 1000),
+      creditsPerVote: 10,
     })
     setPendingCandidates(template.suggestedCandidates)
     setMode('canvas')
@@ -1450,6 +1501,47 @@ export default function CreatePollFeature() {
     setErrorMessage(null)
 
     try {
+      // ✅ STEP 1: Check and deduct credits FIRST
+      toast.loading('Checking credit balance...', { id: 'credits-check' })
+
+      const balanceResponse = await fetch(
+        `/api/credits/balance?wallet=${walletPublicKey.toString()}`
+      )
+      const { balance } = await balanceResponse.json()
+
+      if (balance < 2) {
+        toast.dismiss('credits-check')
+        setErrorMessage('Insufficient credits. You need 2 credits to create a poll.')
+        setIsSubmitting(false)
+        return
+      }
+
+      toast.dismiss('credits-check')
+      toast.loading('Deducting 2 credits...', { id: 'deduct-credits' })
+
+      // Deduct 2 credits via internal transfer
+      const deductResponse = await fetch('/api/credits/deduct-poll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: walletPublicKey.toString(),
+          pollId: finalDetails.pollId,
+          pollDescription: finalDetails.description
+        })
+      })
+
+      if (!deductResponse.ok) {
+        const error = await deductResponse.json()
+        throw new Error(error.error || 'Failed to deduct credits')
+      }
+
+      const { newBalance } = await deductResponse.json()
+      toast.dismiss('deduct-credits')
+      toast.success(`Credits deducted! New balance: ${newBalance}`)
+
+      // ✅ STEP 2: Now proceed with on-chain poll creation
+      toast.loading('Creating poll on-chain...', { id: 'on-chain' })
+
       // Build poll initialization instruction
       const [pollPda] = PublicKey.findProgramAddressSync(
         [Buffer.from(new BN(finalDetails.pollId).toArray('le', 8))],
@@ -1520,6 +1612,9 @@ export default function CreatePollFeature() {
 
       await signAndSendTransaction(versionedTransaction)
 
+      toast.dismiss('on-chain')
+      toast.success('Poll created on-chain!')
+
       // Upload image and save metadata to Supabase
       let imageUrl: string | null = null
       if (finalImage) {
@@ -1534,17 +1629,39 @@ export default function CreatePollFeature() {
         }
       }
 
-      // Save poll metadata to Supabase
+      // Save poll metadata to Supabase with creditsPerVote
       await createPollMetadata(
         finalDetails.pollId,
         walletPublicKey.toString(),
-        imageUrl
+        imageUrl,
+        finalDetails.creditsPerVote
       )
 
       toast.success('Poll created successfully!')
       await new Promise(resolve => setTimeout(resolve, 2000))
       router.push('/voting')
     } catch (error: any) {
+      // Refund credits if on-chain transaction failed
+      if (error.message && !error.message.includes('Insufficient credits')) {
+        toast.loading('Refunding credits...', { id: 'refund' })
+        try {
+          await fetch('/api/credits/refund', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress: walletPublicKey?.toString(),
+              amount: 2,
+              reason: 'Poll creation failed'
+            })
+          })
+          toast.dismiss('refund')
+          toast.success('Credits refunded')
+        } catch (refundError) {
+          console.error('Failed to refund credits:', refundError)
+          toast.dismiss('refund')
+        }
+      }
+
       console.error('Error creating poll:', error)
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
 
