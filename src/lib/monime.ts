@@ -185,8 +185,14 @@ export class MonimeClient {
     currency?: string
     metadata?: Record<string, any>
   }): Promise<MonimeFinancialAccount> {
+    // Generate idempotency key from metadata or random UUID
+    const idempotencyKey = params.metadata?.utopia_user_id || crypto.randomUUID()
+
     return this.request<MonimeFinancialAccount>('/financial-accounts', {
       method: 'POST',
+      headers: {
+        'Idempotency-Key': idempotencyKey
+      },
       body: JSON.stringify({
         name: params.name,
         currency: params.currency || 'SLE',

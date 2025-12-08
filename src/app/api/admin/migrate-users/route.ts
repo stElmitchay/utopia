@@ -34,11 +34,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get all users without Monime accounts (or without credits setup in test mode)
+    // Get all users without Monime accounts, or with local placeholder IDs
+    // Local IDs start with "local_" and need to be upgraded to real Monime accounts in live mode
     const { data: usersToMigrate, error: fetchError } = await supabaseAdmin
       .from('user_profiles')
       .select('id, wallet_address, display_name, email, monime_financial_account_id, credit_balance')
-      .or('monime_financial_account_id.is.null,credit_balance.is.null')
+      .or(`monime_financial_account_id.is.null,credit_balance.is.null${!isTestMode ? ',monime_financial_account_id.like.local_%' : ''}`)
 
     if (fetchError) {
       console.error('Error fetching users:', fetchError)
