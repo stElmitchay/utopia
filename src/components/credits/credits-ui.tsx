@@ -16,23 +16,28 @@ import { Coins, Plus, RefreshCw, Wallet, TrendingUp } from 'lucide-react'
 // ============================================================================
 
 export function CreditBalanceDisplay() {
-  const { data: credits, isLoading, error } = useUserCredits()
+  const { data: credits, isLoading, error, isFetched } = useUserCredits()
   const { mutate: refresh, isPending: isRefreshing } = useRefreshCredits()
+
+  // Don't show anything if user is not logged in (query is disabled)
+  if (!isFetched && !isLoading) {
+    return null
+  }
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 text-red-500">
+      <div className="flex items-center gap-2 text-red-400">
         <Coins className="h-4 w-4" />
-        <span className="text-sm">Error loading credits</span>
+        <span className="text-sm">Error</span>
       </div>
     )
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground animate-pulse">
+      <div className="flex items-center gap-2 text-[#F5F5F5]/60 animate-pulse">
         <Coins className="h-4 w-4" />
-        <span className="text-sm">Loading...</span>
+        <span className="text-sm">...</span>
       </div>
     )
   }
@@ -40,10 +45,10 @@ export function CreditBalanceDisplay() {
   const balance = credits?.balance || 0
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-full">
-        <Coins className="h-4 w-4 text-primary" />
-        <span className="font-semibold text-sm">
+    <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2 bg-[#A3E4D7]/20 px-3 py-1.5 rounded-full border border-[#A3E4D7]/30">
+        <Coins className="h-4 w-4 text-[#A3E4D7]" />
+        <span className="font-semibold text-sm text-[#F5F5F5]">
           {balance.toLocaleString()} credits
         </span>
       </div>
@@ -52,7 +57,7 @@ export function CreditBalanceDisplay() {
         size="sm"
         onClick={() => refresh()}
         disabled={isRefreshing}
-        className="h-8 w-8 p-0"
+        className="h-8 w-8 p-0 text-[#A3E4D7] hover:text-[#F5F5F5] hover:bg-[#A3E4D7]/20"
       >
         <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
       </Button>
