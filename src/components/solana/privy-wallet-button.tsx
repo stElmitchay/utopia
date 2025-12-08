@@ -7,6 +7,7 @@ import { ellipsify } from '../ui/ui-layout'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { getProfile } from '@/lib/profile-service'
+import { useUserCredits } from '../credits/credits-data-access'
 
 export function PrivyWalletButton() {
   const { ready, authenticated, user, login, logout } = usePrivy()
@@ -14,6 +15,8 @@ export function PrivyWalletButton() {
   const [showDropdown, setShowDropdown] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const { data: credits } = useUserCredits()
+  const creditBalance = credits?.balance ?? 0
 
   // Get the Solana embedded wallet
   const solanaWallet = useMemo(() => {
@@ -101,7 +104,7 @@ export function PrivyWalletButton() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="inline-flex items-center justify-center gap-2 p-2 bg-accent/10 text-accent border-2 border-accent/30 hover:border-accent transition-colors"
+        className="inline-flex items-center justify-center gap-2 px-2.5 py-2 bg-accent/10 text-accent border-2 border-accent/30 hover:border-accent transition-colors"
       >
         {/* Profile Icon / Avatar */}
         {avatarUrl ? (
@@ -115,6 +118,10 @@ export function PrivyWalletButton() {
             {user?.email?.address?.[0]?.toUpperCase() || solanaWallet?.address?.[0]?.toUpperCase() || 'U'}
           </div>
         )}
+        {/* Credits Balance */}
+        <span className="text-sm font-bold text-accent">
+          ◆ {creditBalance.toLocaleString()}
+        </span>
         <svg
           className={`w-3 h-3 transition-transform ${showDropdown ? 'rotate-180' : ''}`}
           fill="none"
