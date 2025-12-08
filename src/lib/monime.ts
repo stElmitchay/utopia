@@ -28,11 +28,13 @@ export interface MonimeFinancialAccount {
   id: string
   name: string
   currency: string
-  balance: MonimeAmount
-  status: 'active' | 'inactive' | 'frozen'
+  balance: {
+    available: MonimeAmount
+  }
+  status?: 'active' | 'inactive' | 'frozen'
   metadata?: Record<string, any>
-  createdAt: string
-  updatedAt: string
+  createTime: string
+  updateTime: string
 }
 
 export interface MonimeInternalTransfer {
@@ -208,7 +210,7 @@ export class MonimeClient {
     accountId: string
   ): Promise<MonimeFinancialAccount> {
     return this.request<MonimeFinancialAccount>(
-      `/financial-accounts/${accountId}`
+      `/financial-accounts/${accountId}?withBalance=true`
     )
   }
 
@@ -217,7 +219,7 @@ export class MonimeClient {
    */
   async getBalance(accountId: string): Promise<number> {
     const account = await this.getFinancialAccount(accountId)
-    return MonimeClient.toMajorUnits(account.balance.value)
+    return MonimeClient.toMajorUnits(account.balance.available.value)
   }
 
   /**
