@@ -20,6 +20,8 @@ import { useCluster } from '../cluster/cluster-data-access'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { uploadPollImage } from '@/lib/storage-service'
 import { createPollMetadata } from '@/lib/polls-service'
+import { useUserCredits } from '../credits/credits-data-access'
+import { InsufficientCreditsWarning, CreditBalanceDisplay } from '../credits/credits-ui'
 
 // Types
 interface PollDetails {
@@ -1462,7 +1464,12 @@ export default function CreatePollFeature() {
   const [finalCandidates, setFinalCandidates] = useState<string[]>([])
   const [finalImage, setFinalImage] = useState<File | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [showInsufficientCredits, setShowInsufficientCredits] = useState(false)
   const programId = getVotingapplicationProgramId(cluster.network as any)
+
+  // Get user credits
+  const { data: userCredits } = useUserCredits()
+  const currentBalance = userCredits?.balance || 0
 
   const handleTemplateSelect = (template: typeof POLL_TEMPLATES[0]) => {
     const now = new Date()
@@ -1511,7 +1518,7 @@ export default function CreatePollFeature() {
 
       if (balance < 2) {
         toast.dismiss('credits-check')
-        setErrorMessage('Insufficient credits. You need 2 credits to create a poll.')
+        setShowInsufficientCredits(true)
         setIsSubmitting(false)
         return
       }
@@ -1807,8 +1814,29 @@ export default function CreatePollFeature() {
             </p>
           </motion.div>
 
+          {/* Credit Balance Display */}
+          <div className="flex justify-end mb-4">
+            <CreditBalanceDisplay />
+          </div>
+
+          {/* Insufficient Credits Warning */}
+          {showInsufficientCredits && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6"
+            >
+              <InsufficientCreditsWarning
+                required={2}
+                current={currentBalance}
+                action="create a poll"
+                onPurchase={() => setShowInsufficientCredits(false)}
+              />
+            </motion.div>
+          )}
+
           {/* Error Message */}
-          {errorMessage && (
+          {errorMessage && !showInsufficientCredits && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
