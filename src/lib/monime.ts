@@ -123,7 +123,8 @@ export class MonimeClient {
     return {
       'Authorization': `Bearer ${this.config.apiKey}`,
       'Content-Type': 'application/json',
-      'X-Monime-Version': this.config.apiVersion
+      'Monime-Version': `caph.2025-08-23`,
+      'Monime-Space-Id': this.config.spaceId
     }
   }
 
@@ -143,14 +144,17 @@ export class MonimeClient {
 
     const data = await response.json()
 
-    if (!response.ok) {
-      const error = data as MonimeError
+    if (!response.ok || data.success === false) {
+      // Monime wraps errors in { success: false, messages: [...] }
+      const errorMessage = data.messages?.[0] || data.message || 'Unknown error'
+      const errorCode = data.code || response.status
       throw new Error(
-        `Monime API Error: ${error.message} (${error.code})`
+        `Monime API Error: ${errorMessage} (${errorCode})`
       )
     }
 
-    return data as T
+    // Monime wraps successful responses in { success: true, result: {...} }
+    return (data.result !== undefined ? data.result : data) as T
   }
 
   /**
