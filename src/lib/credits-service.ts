@@ -111,6 +111,8 @@ export async function createUserFinancialAccount(params: {
 
 /**
  * Get user's credit balance (from cache or Monime)
+ * Returns balance in major units (e.g., 4.95 SLE) for display
+ * Database stores balance in minor units (e.g., 495 cents)
  */
 export async function getUserCredits(
   userId: string,
@@ -139,15 +141,17 @@ export async function getUserCredits(
     lastSync && Date.now() - lastSync.getTime() < 10 * 60 * 1000
 
   if (!forceRefresh && isCacheFresh) {
-    return user.credit_balance || 0
+    // Convert from minor units (cents) to major units for display
+    return (user.credit_balance || 0) / 100
   }
 
-  // Fetch fresh balance from Monime
+  // Fetch fresh balance from Monime (returns major units)
   return await syncUserBalance(userId, user.monime_financial_account_id)
 }
 
 /**
  * Sync user balance from Monime to Supabase
+ * Note: Database stores balance in minor units (cents), API returns major units for display
  */
 export async function syncUserBalance(
   userId: string,
@@ -166,13 +170,13 @@ export async function syncUserBalance(
 
   const cachedBalance = user?.credit_balance || 0
 
-  // Fetch balance from Monime
-  const monimeBalance = await monime.getBalance(monimeAccountId)
+  // Fetch balance from Monime in minor units (cents)
+  const monimeBalanceMinorUnits = await monime.getBalanceMinorUnits(monimeAccountId)
 
-  // Update database via stored procedure
+  // Update database via stored procedure (stores minor units)
   const { error: updateError } = await supabase.rpc('update_user_credit_balance', {
     p_user_id: userId,
-    p_new_balance: monimeBalance,
+    p_new_balance: monimeBalanceMinorUnits,
     p_sync_type: syncType
   })
 
@@ -180,7 +184,8 @@ export async function syncUserBalance(
     console.error('Failed to update user balance:', updateError)
   }
 
-  return monimeBalance
+  // Return major units for display
+  return monimeBalanceMinorUnits / 100
 }
 
 /**

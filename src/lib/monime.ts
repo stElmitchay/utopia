@@ -223,6 +223,15 @@ export class MonimeClient {
   }
 
   /**
+   * Get balance of a financial account in minor units (cents)
+   * Use this when storing in database
+   */
+  async getBalanceMinorUnits(accountId: string): Promise<number> {
+    const account = await this.getFinancialAccount(accountId)
+    return account.balance.available.value
+  }
+
+  /**
    * List all financial accounts
    */
   async listFinancialAccounts(params?: {
