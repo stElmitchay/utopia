@@ -21,7 +21,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { uploadPollImage } from '@/lib/storage-service'
 import { createPollMetadata } from '@/lib/polls-service'
 import { useUserCredits } from '../credits/credits-data-access'
-import { InsufficientCreditsWarning, CreditBalanceDisplay } from '../credits/credits-ui'
+import { InsufficientCreditsWarning } from '../credits/credits-ui'
 
 // Types
 interface PollDetails {
@@ -1813,11 +1813,6 @@ export default function CreatePollFeature() {
               {mode === 'canvas' && 'Visual poll builder'}
             </p>
           </motion.div>
-
-          {/* Credit Balance Display */}
-          <div className="flex justify-end mb-4">
-            <CreditBalanceDisplay />
-          </div>
 
           {/* Insufficient Credits Warning */}
           {showInsufficientCredits && (
