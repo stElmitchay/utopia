@@ -7,6 +7,7 @@ import { Footer } from '@/components/footer'
 import { Toaster } from 'react-hot-toast'
 import { PrivyWalletButton } from '@/components/solana/privy-wallet-button'
 import { ClusterUiSelect } from '@/components/cluster/cluster-ui'
+import { CreditBalanceDisplay } from '@/components/credits/credits-ui'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePrivy } from '@privy-io/react-auth'
@@ -68,6 +69,9 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
                 </svg>
                 Create
               </Link>
+
+              {/* Credit Balance */}
+              <CreditBalanceDisplay />
 
               {/* Wallet/Profile Button */}
               <PrivyWalletButton />
@@ -140,6 +144,14 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
                   >
                     Profile
                   </Link>
+                )}
+
+                {/* Credit Balance - Mobile */}
+                {authenticated && (
+                  <div className="py-3 px-4 flex items-center justify-between border-t border-border mt-2">
+                    <span className="text-sm font-medium text-muted-foreground">Your Credits</span>
+                    <CreditBalanceDisplay />
+                  </div>
                 )}
 
                 {/* Create Button - Mobile */}
