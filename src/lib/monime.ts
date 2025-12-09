@@ -136,6 +136,11 @@ export class MonimeClient {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
 
+    console.log(`[Monime] ${options.method || 'GET'} ${endpoint}`)
+    if (options.body) {
+      console.log(`[Monime] Request body:`, options.body)
+    }
+
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -147,9 +152,17 @@ export class MonimeClient {
     const data = await response.json()
 
     if (!response.ok || data.success === false) {
-      // Monime wraps errors in { success: false, messages: [...] }
-      const errorMessage = data.messages?.[0] || data.message || 'Unknown error'
-      const errorCode = data.code || response.status
+      // Log full error response for debugging
+      console.error(`[Monime] Error response:`, JSON.stringify(data, null, 2))
+
+      // Monime wraps errors in { success: false, messages: [...] } or { error: {...} }
+      const errorMessage =
+        data.messages?.[0] ||
+        data.message ||
+        data.error?.message ||
+        data.error?.description ||
+        JSON.stringify(data)
+      const errorCode = data.code || data.error?.code || response.status
       throw new Error(
         `Monime API Error: ${errorMessage} (${errorCode})`
       )
@@ -190,6 +203,14 @@ export class MonimeClient {
     // Generate idempotency key from metadata or random UUID
     const idempotencyKey = params.metadata?.utopia_user_id || crypto.randomUUID()
 
+    // Convert all metadata values to strings (Monime requires StringMap)
+    const stringMetadata: Record<string, string> = {}
+    if (params.metadata) {
+      for (const [key, value] of Object.entries(params.metadata)) {
+        stringMetadata[key] = String(value)
+      }
+    }
+
     return this.request<MonimeFinancialAccount>('/financial-accounts', {
       method: 'POST',
       headers: {
@@ -198,7 +219,7 @@ export class MonimeClient {
       body: JSON.stringify({
         name: params.name,
         currency: params.currency || 'SLE',
-        metadata: params.metadata || {}
+        metadata: stringMetadata
       })
     })
   }
@@ -281,8 +302,23 @@ export class MonimeClient {
     currency?: string
     metadata?: Record<string, any>
   }): Promise<MonimeInternalTransfer> {
+    // Generate idempotency key from metadata or random UUID
+    const idempotencyKey = params.metadata?.idempotency_key ||
+      `${params.sourceAccountId}-${params.destinationAccountId}-${params.amount}-${Date.now()}`
+
+    // Convert all metadata values to strings (Monime requires StringMap)
+    const stringMetadata: Record<string, string> = {}
+    if (params.metadata) {
+      for (const [key, value] of Object.entries(params.metadata)) {
+        stringMetadata[key] = String(value)
+      }
+    }
+
     return this.request<MonimeInternalTransfer>('/internal-transfers', {
       method: 'POST',
+      headers: {
+        'Idempotency-Key': idempotencyKey
+      },
       body: JSON.stringify({
         amount: {
           currency: params.currency || 'SLE',
@@ -290,7 +326,7 @@ export class MonimeClient {
         },
         sourceFinancialAccount: { id: params.sourceAccountId },
         destinationFinancialAccount: { id: params.destinationAccountId },
-        metadata: params.metadata || {}
+        metadata: stringMetadata
       })
     })
   }
@@ -349,8 +385,23 @@ export class MonimeClient {
     cancelUrl?: string
     metadata?: Record<string, any>
   }): Promise<MonimeCheckoutSession> {
+    // Generate idempotency key
+    const idempotencyKey = params.metadata?.idempotency_key ||
+      `checkout-${params.financialAccountId}-${params.amount}-${Date.now()}`
+
+    // Convert all metadata values to strings (Monime requires StringMap)
+    const stringMetadata: Record<string, string> = {}
+    if (params.metadata) {
+      for (const [key, value] of Object.entries(params.metadata)) {
+        stringMetadata[key] = String(value)
+      }
+    }
+
     return this.request<MonimeCheckoutSession>('/checkout-sessions', {
       method: 'POST',
+      headers: {
+        'Idempotency-Key': idempotencyKey
+      },
       body: JSON.stringify({
         amount: {
           currency: params.currency || 'SLE',
@@ -363,7 +414,7 @@ export class MonimeClient {
         ],
         successUrl: params.successUrl,
         cancelUrl: params.cancelUrl,
-        metadata: params.metadata || {}
+        metadata: stringMetadata
       })
     })
   }
