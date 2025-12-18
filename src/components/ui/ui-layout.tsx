@@ -9,9 +9,14 @@ import toast, {Toaster} from 'react-hot-toast'
 import {AccountChecker} from '../account/account-ui'
 import {ClusterChecker, ClusterUiSelect, ExplorerLink} from '../cluster/cluster-ui'
 import {PrivyWalletButton} from '../solana/privy-wallet-button'
+import {CreditBalanceDisplay} from '../credits/credits-ui'
+import {useOnboarding} from '../onboarding/use-onboarding'
 
 export function UiLayout({ children, links }: { children: ReactNode; links: { label: string; path: string }[] }) {
   const pathname = usePathname()
+
+  // Auto-onboard users when they connect wallet
+  useOnboarding()
 
   return (
     <div className="h-full flex flex-col bg-[#0A1A14]">
@@ -48,6 +53,7 @@ export function UiLayout({ children, links }: { children: ReactNode; links: { la
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <CreditBalanceDisplay />
               <PrivyWalletButton />
               <div className="hidden sm:block">
                 <ClusterUiSelect />

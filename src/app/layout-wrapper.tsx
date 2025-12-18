@@ -69,7 +69,7 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
                 Create
               </Link>
 
-              {/* Wallet/Profile Button */}
+              {/* Wallet/Profile Button (includes credits) */}
               <PrivyWalletButton />
 
               {/* Mobile Menu Button */}

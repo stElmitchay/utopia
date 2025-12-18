@@ -61,20 +61,9 @@ export function HeroSection() {
         </div>
 
         {/* Bottom Section with CTA */}
-        <div className="absolute bottom-8 left-6 md:left-8 right-6 md:right-8">
-          {/* Info texts on sides, CTA in center */}
-          <div className="flex justify-between items-end">
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 }}
-              className="text-xs md:text-sm text-muted-foreground max-w-[120px] md:max-w-xs"
-            >
-              Decentralized voting
-              <br />
-              on Solana blockchain
-            </motion.p>
-
+        <div className="absolute bottom-16 md:bottom-20 left-6 md:left-8 right-6 md:right-8">
+          {/* CTA in center */}
+          <div className="flex justify-center items-end">
             {/* Get Started Button - Center */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -84,51 +73,23 @@ export function HeroSection() {
             >
               <Link
                 href="/create-poll"
-                className="group inline-flex items-center gap-3 px-6 md:px-8 py-3 md:py-4 bg-accent text-background font-bold uppercase tracking-wide text-xs md:text-sm border-2 border-accent hover:bg-transparent hover:text-accent transition-all duration-300"
+                className="group inline-flex items-center gap-4 px-8 md:px-12 py-4 md:py-6 bg-accent text-background font-black uppercase tracking-wider text-sm md:text-base lg:text-lg border-4 border-accent hover:bg-transparent hover:text-accent transition-all duration-300"
               >
                 <span>Get Started</span>
                 <svg
-                  className="w-4 h-4 md:w-5 md:h-5 transform group-hover:translate-x-1 transition-transform"
+                  className="w-5 h-5 md:w-6 md:h-6 transform group-hover:translate-x-2 transition-transform"
                   fill="none"
                   stroke="currentColor"
+                  strokeWidth={2.5}
                   viewBox="0 0 24 24"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
               </Link>
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1 }}
-                className="text-[10px] md:text-xs text-muted-foreground mt-3 font-mono"
-              >
-                NO SIGNUP REQUIRED
-              </motion.p>
             </motion.div>
-
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 }}
-              className="text-xs md:text-sm text-muted-foreground text-right max-w-[120px] md:max-w-xs"
-            >
-              Transparent, tamper-proof
-              <br />
-              elections for everyone.
-            </motion.p>
           </div>
         </div>
       </div>
-
-      {/* Blockchain Badge */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
-        className="absolute top-6 md:top-8 right-6 md:right-8 text-xs font-mono text-muted-foreground"
-      >
-        SOLANA
-      </motion.div>
     </section>
   )
 }

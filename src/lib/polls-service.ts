@@ -6,7 +6,8 @@ import { supabase, PollMetadata } from './supabase'
 export async function createPollMetadata(
   pollId: number,
   creatorWallet: string,
-  imageUrl?: string | null
+  imageUrl?: string | null,
+  creditsPerVote: number = 10
 ): Promise<PollMetadata | null> {
   const { data, error } = await supabase
     .from('polls_metadata')
@@ -14,6 +15,7 @@ export async function createPollMetadata(
       poll_id: pollId,
       creator_wallet: creatorWallet,
       image_url: imageUrl || null,
+      credits_per_vote: creditsPerVote,
       is_deleted: false,
     })
     .select()
@@ -25,6 +27,15 @@ export async function createPollMetadata(
   }
 
   return data
+}
+
+/**
+ * Get the credits_per_vote for a poll
+ * Returns the default (10) if poll metadata doesn't exist
+ */
+export async function getPollCreditsPerVote(pollId: number): Promise<number> {
+  const metadata = await getPollMetadata(pollId)
+  return metadata?.credits_per_vote ?? 10
 }
 
 /**

@@ -12,6 +12,9 @@ import { ConfirmationModal } from '../ui/confirmation-modal'
 import { VoteReceipt } from '../ui/vote-receipt'
 import { PollResultsCard } from '../ui/poll-results-card'
 import Link from 'next/link'
+import { useUserCredits } from '../credits/credits-data-access'
+import { useQueryClient } from '@tanstack/react-query'
+import { getPollCreditsPerVote } from '@/lib/polls-service'
 
 // Component to create a new poll
 export function CreatePollForm({ onPollCreated }: { onPollCreated?: (details: any) => void }) {
@@ -291,12 +294,40 @@ export function VotingSection({
   const { vote, REQUIRED_SOL_AMOUNT, solBalance, hasEnoughSol } = useVotingProgram()
   const { ready, authenticated } = usePrivy()
   const { ready: walletsReady, wallets } = useWallets()
+  const queryClient = useQueryClient()
+
+  // Credits integration
+  const { data: userCredits, isLoading: creditsLoading } = useUserCredits()
+  const [creditsPerVote, setCreditsPerVote] = useState<number>(10)
+  const [creditsLoaded, setCreditsLoaded] = useState(false)
 
   const solanaWallet = useMemo(() => {
     console.log('[VotingSection] Debug:', { ready, authenticated, walletsReady, walletsCount: wallets.length })
     if (!ready || !authenticated || !walletsReady || wallets.length === 0) return null
     return wallets[0] // First wallet is the embedded Solana wallet
   }, [ready, authenticated, walletsReady, wallets])
+
+  // Fetch poll's credits_per_vote
+  useEffect(() => {
+    const fetchCreditsPerVote = async () => {
+      try {
+        const credits = await getPollCreditsPerVote(pollId)
+        setCreditsPerVote(credits)
+        setCreditsLoaded(true)
+      } catch (error) {
+        console.error('Error fetching credits per vote:', error)
+        setCreditsPerVote(10) // Default fallback
+        setCreditsLoaded(true)
+      }
+    }
+    fetchCreditsPerVote()
+  }, [pollId])
+
+  // Check if user has enough credits
+  const hasEnoughCredits = useMemo(() => {
+    if (!userCredits) return false
+    return userCredits.balance >= creditsPerVote
+  }, [userCredits, creditsPerVote])
 
   const [voteError, setVoteError] = useState<string | null>(null)
   const [votingFor, setVotingFor] = useState<string | null>(null)
@@ -346,6 +377,12 @@ export function VotingSection({
       return
     }
 
+    // Check for sufficient credits
+    if (!hasEnoughCredits) {
+      toast.error(`Insufficient credits. You need ${creditsPerVote} credits to vote.`)
+      return
+    }
+
     // Check for recent transactions in localStorage before attempting to vote
     // Track by poll only (not candidate) to ensure one vote per poll
     const transactionId = `${pollId}-${solanaWallet.address}`
@@ -364,38 +401,71 @@ export function VotingSection({
   }
 
   const handleConfirmVote = async () => {
-    if (!candidateToVoteFor) return
+    if (!candidateToVoteFor || !solanaWallet?.address) return
 
     setShowConfirmation(false)
     setVotingFor(candidateToVoteFor)
     setVoteError(null)
 
+    let creditsDeducted = false
+
     try {
+      // ============ STEP 1: Deduct credits FIRST ============
+      toast.loading('Deducting credits...', { id: 'deduct-credits' })
+
+      const deductResponse = await fetch('/api/credits/deduct-vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: solanaWallet.address,
+          pollId,
+          candidateName: candidateToVoteFor,
+          voteAmount: creditsPerVote
+        })
+      })
+
+      if (!deductResponse.ok) {
+        const errorData = await deductResponse.json()
+        toast.dismiss('deduct-credits')
+        throw new Error(errorData.error || 'Failed to deduct credits')
+      }
+
+      creditsDeducted = true
+      toast.dismiss('deduct-credits')
+      toast.success(`${creditsPerVote} credits deducted`)
+
+      // ============ STEP 2: Submit vote on-chain ============
+      toast.loading('Submitting vote on-chain...', { id: 'vote-onchain' })
+
       const signature = await vote.mutateAsync({
         pollId,
         candidateName: candidateToVoteFor,
       })
 
+      toast.dismiss('vote-onchain')
+
+      // ============ STEP 3: Vote successful - update local state ============
+      // Refresh credits balance
+      queryClient.invalidateQueries({ queryKey: ['credits'] })
+
       // Store the transaction ID locally to prevent duplicate submissions (per-poll)
-      const transactionId = `${pollId}-${solanaWallet?.address || 'unknown'}`
+      const transactionId = `${pollId}-${solanaWallet.address}`
       const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
       processedVotes[transactionId] = Date.now()
       localStorage.setItem('processedVotes', JSON.stringify(processedVotes))
 
       // Store vote record for My Polls page
-      if (solanaWallet?.address) {
-        const storageKey = `votedPolls_${solanaWallet.address}`
-        const existingVotes = JSON.parse(localStorage.getItem(storageKey) || '[]')
-        // Only add if not already tracked
-        if (!existingVotes.some((v: any) => v.pollId === pollId.toString())) {
-          existingVotes.push({
-            pollId: pollId.toString(),
-            candidateName: candidateToVoteFor,
-            timestamp: Date.now(),
-            txSignature: typeof signature === 'string' ? signature : undefined
-          })
-          localStorage.setItem(storageKey, JSON.stringify(existingVotes))
-        }
+      const storageKey = `votedPolls_${solanaWallet.address}`
+      const existingVotes = JSON.parse(localStorage.getItem(storageKey) || '[]')
+      // Only add if not already tracked
+      if (!existingVotes.some((v: any) => v.pollId === pollId.toString())) {
+        existingVotes.push({
+          pollId: pollId.toString(),
+          candidateName: candidateToVoteFor,
+          timestamp: Date.now(),
+          txSignature: typeof signature === 'string' ? signature : undefined
+        })
+        localStorage.setItem(storageKey, JSON.stringify(existingVotes))
       }
 
       // Show receipt
@@ -409,35 +479,63 @@ export function VotingSection({
       if (onUpdate) onUpdate()
     } catch (error: any) {
       console.error('Vote error:', error)
+      toast.dismiss('deduct-credits')
+      toast.dismiss('vote-onchain')
+
       const errorMessage = error.message || 'Failed to cast vote'
-      
+
       // Handle specific error cases
       if (errorMessage.includes('already been processed') || errorMessage.includes('This transaction has already been processed')) {
-        // If the transaction was already processed, treat it as a success
+        // If the transaction was already processed, treat it as a success (don't refund)
         toast.success('Vote was successfully processed!')
 
+        // Refresh credits balance
+        queryClient.invalidateQueries({ queryKey: ['credits'] })
+
         // Store the transaction to prevent future duplicates (per-poll)
-        const transactionId = `${pollId}-${solanaWallet?.address || 'unknown'}`
+        const transactionId = `${pollId}-${solanaWallet.address}`
         const processedVotes = JSON.parse(localStorage.getItem('processedVotes') || '{}')
         processedVotes[transactionId] = Date.now()
         localStorage.setItem('processedVotes', JSON.stringify(processedVotes))
 
         // Store vote record for My Polls page
-        if (solanaWallet?.address) {
-          const storageKey = `votedPolls_${solanaWallet.address}`
-          const existingVotes = JSON.parse(localStorage.getItem(storageKey) || '[]')
-          if (!existingVotes.some((v: any) => v.pollId === pollId.toString())) {
-            existingVotes.push({
-              pollId: pollId.toString(),
-              candidateName: candidateToVoteFor,
-              timestamp: Date.now()
-            })
-            localStorage.setItem(storageKey, JSON.stringify(existingVotes))
-          }
+        const storageKey = `votedPolls_${solanaWallet.address}`
+        const existingVotes = JSON.parse(localStorage.getItem(storageKey) || '[]')
+        if (!existingVotes.some((v: any) => v.pollId === pollId.toString())) {
+          existingVotes.push({
+            pollId: pollId.toString(),
+            candidateName: candidateToVoteFor,
+            timestamp: Date.now()
+          })
+          localStorage.setItem(storageKey, JSON.stringify(existingVotes))
         }
 
         if (onUpdate) onUpdate()
       } else {
+        // ============ REFUND CREDITS if on-chain vote failed ============
+        if (creditsDeducted) {
+          toast.loading('Refunding credits...', { id: 'refund-credits' })
+          try {
+            await fetch('/api/credits/refund', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                walletAddress: solanaWallet.address,
+                amount: creditsPerVote,
+                reason: `Vote failed for poll ${pollId}: ${errorMessage.substring(0, 100)}`
+              })
+            })
+            toast.dismiss('refund-credits')
+            toast.success('Credits refunded')
+            // Refresh credits balance
+            queryClient.invalidateQueries({ queryKey: ['credits'] })
+          } catch (refundError) {
+            console.error('Failed to refund credits:', refundError)
+            toast.dismiss('refund-credits')
+            toast.error('Failed to refund credits. Please contact support.')
+          }
+        }
+
         console.error(`Vote error: ${errorMessage}`)
         setVoteError(errorMessage)
         toast.error(`Voting failed: ${errorMessage.substring(0, 100)}${errorMessage.length > 100 ? '...' : ''}`)
@@ -464,12 +562,18 @@ export function VotingSection({
           <div className="space-y-2">
             <p>You are about to vote for:</p>
             <p className="text-lg font-bold text-[#A3E4D7]">{candidateToVoteFor}</p>
+            <div className="bg-accent/10 border border-accent/30 rounded p-3 mt-3">
+              <p className="text-sm font-bold text-accent">Cost: {creditsPerVote} credits</p>
+              <p className="text-xs text-[#F5F5DC]/60 mt-1">
+                Your balance: {userCredits?.balance ?? 0} credits
+              </p>
+            </div>
             <p className="text-xs mt-3 text-[#F5F5DC]/60">
               ⚠️ This action is permanent and cannot be undone. Your vote will be recorded on the Solana blockchain.
             </p>
           </div>
         }
-        confirmText="Cast Vote"
+        confirmText={`Cast Vote (${creditsPerVote} credits)`}
         cancelText="Cancel"
       />
 
@@ -489,6 +593,42 @@ export function VotingSection({
 
     <div className="space-y-4">
       {/* Warnings & Errors */}
+      {/* Credit Cost Info */}
+      {isActive && creditsLoaded && (
+        <div className="bg-accent/5 border-2 border-accent/30 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm font-bold text-foreground">Vote Cost: {creditsPerVote} credits</span>
+            </div>
+            {authenticated && solanaWallet && (
+              <span className="text-xs text-muted-foreground font-mono">
+                Your balance: {userCredits?.balance ?? 0} credits
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Insufficient Credits Warning */}
+      {authenticated && solanaWallet && !creditsLoading && !hasEnoughCredits && isActive && (
+        <div className="bg-yellow-500/10 border-2 border-yellow-500 p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <p className="text-sm font-bold text-yellow-500 uppercase tracking-wide mb-1">Insufficient Credits</p>
+              <p className="text-xs text-foreground font-mono">
+                You have {userCredits?.balance ?? 0} credits. You need {creditsPerVote} credits to vote.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {authenticated && solanaWallet && solBalance !== null && !hasEnoughSol && (
         <div className="bg-yellow-500/10 border-2 border-yellow-500 p-4">
           <div className="flex items-start gap-3">
@@ -496,9 +636,9 @@ export function VotingSection({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <div>
-              <p className="text-sm font-bold text-yellow-500 uppercase tracking-wide mb-1">Insufficient Balance</p>
+              <p className="text-sm font-bold text-yellow-500 uppercase tracking-wide mb-1">Insufficient SOL</p>
               <p className="text-xs text-foreground font-mono">
-                You have {solBalance.toFixed(4)} SOL. You need at least {REQUIRED_SOL_AMOUNT} SOL to vote.
+                You have {solBalance.toFixed(4)} SOL. You need at least {REQUIRED_SOL_AMOUNT} SOL for gas fees.
               </p>
             </div>
           </div>
@@ -546,7 +686,7 @@ export function VotingSection({
             ? Math.round((voteCount / totalVotes) * 100)
             : 0
 
-          const canVote = isActive && authenticated && solanaWallet && (!voteError) && (solBalance !== null && hasEnoughSol) && !hasAlreadyVoted
+          const canVote = isActive && authenticated && solanaWallet && (!voteError) && (solBalance !== null && hasEnoughSol) && hasEnoughCredits && !hasAlreadyVoted
           const isVoting = votingFor === candidateName
           const isLeading = index === 0 && totalVotes > 0
           const isVotedCandidate = existingVote?.candidateName === candidateName
@@ -587,9 +727,13 @@ export function VotingSection({
                       ? 'Login to vote'
                       : !isActive
                       ? 'Poll is not active'
+                      : !hasEnoughCredits
+                      ? `Insufficient credits (need ${creditsPerVote})`
+                      : !hasEnoughSol
+                      ? 'Insufficient SOL for gas fees'
                       : voteError
                       ? 'Voting failed'
-                      : ''}
+                      : `Vote (${creditsPerVote} credits)`}
                   >
                     {isVoting ? (
                       <div className="flex items-center justify-center gap-2">
