@@ -4,6 +4,8 @@
  * GET /api/credits/transactions?wallet=<wallet_address>&limit=<number>
  */
 
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserTransactions } from '@/lib/credits-service'
 import { createClient } from '@supabase/supabase-js'
