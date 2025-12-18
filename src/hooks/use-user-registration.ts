@@ -19,16 +19,16 @@ export function useUserRegistration() {
 
     // Get wallet address from Privy user
     const solanaWallet = user.linkedAccounts?.find(
-      (account): account is { type: 'wallet'; chainType: 'solana'; address: string } =>
+      (account) =>
         account.type === 'wallet' && 'chainType' in account && account.chainType === 'solana'
     )
 
-    if (!solanaWallet?.address) {
+    const walletAddress = solanaWallet && 'address' in solanaWallet ? solanaWallet.address : null
+
+    if (!walletAddress) {
       console.log('[UserRegistration] No Solana wallet found yet')
       return
     }
-
-    const walletAddress = solanaWallet.address
     const email = user.email?.address
 
     // Mark as registered to prevent duplicate calls
