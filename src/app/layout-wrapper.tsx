@@ -10,11 +10,15 @@ import { ClusterUiSelect } from '@/components/cluster/cluster-ui'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePrivy } from '@privy-io/react-auth'
+import { useUserRegistration } from '@/hooks/use-user-registration'
 
 export function LayoutWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { authenticated } = usePrivy()
+
+  // Automatically register users when they log in
+  useUserRegistration()
 
   // Landing page gets its own navigation
   if (pathname === '/') {
