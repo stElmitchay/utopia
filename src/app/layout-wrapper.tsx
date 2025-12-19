@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useEffect, useRef } from 'react'
 import { Navigation } from '@/components/navigation'
 import { Footer } from '@/components/footer'
 import { Toaster } from 'react-hot-toast'
@@ -10,15 +10,54 @@ import { ClusterUiSelect } from '@/components/cluster/cluster-ui'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePrivy } from '@privy-io/react-auth'
-import { useUserRegistration } from '@/hooks/use-user-registration'
 
 export function LayoutWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const { authenticated } = usePrivy()
+  const { ready, authenticated, user } = usePrivy()
+  const hasRegistered = useRef(false)
 
   // Automatically register users when they log in
-  useUserRegistration()
+  // These operations are INDEPENDENT - each one runs separately
+  useEffect(() => {
+    if (!ready || !authenticated || !user || hasRegistered.current) {
+      return
+    }
+
+    // Find Solana wallet
+    const solanaWallet = user.linkedAccounts?.find(
+      (account: any) => account.type === 'wallet' && account.chainType === 'solana'
+    ) as any
+
+    if (!solanaWallet?.address) {
+      return
+    }
+
+    hasRegistered.current = true
+    const walletAddress = solanaWallet.address
+    const email = user.email?.address
+
+    // INDEPENDENT OPERATION 1: Create Supabase profile
+    fetch('/api/user/create-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletAddress, email })
+    })
+      .then(res => res.json())
+      .then(data => console.log('[Supabase] Profile:', data))
+      .catch(err => console.error('[Supabase] Error:', err))
+
+    // INDEPENDENT OPERATION 2: Create Monime financial account
+    fetch('/api/user/create-monime-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletAddress, email })
+    })
+      .then(res => res.json())
+      .then(data => console.log('[Monime] Account:', data))
+      .catch(err => console.error('[Monime] Error:', err))
+
+  }, [ready, authenticated, user])
 
   // Landing page gets its own navigation
   if (pathname === '/') {

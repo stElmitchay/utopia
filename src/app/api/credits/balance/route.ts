@@ -4,6 +4,8 @@
  * GET /api/credits/balance?wallet=<wallet_address>
  */
 
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserCredits } from '@/lib/credits-service'
 import { createClient } from '@supabase/supabase-js'

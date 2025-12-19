@@ -12,17 +12,25 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { getMonimeClient } from '@/lib/monime'
 
-// Use service role for admin operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Lazy initialization to avoid build-time errors
+let supabaseAdmin: SupabaseClient | null = null
 
-// Check if we're using a test key (financial account creation not supported)
-const isTestMode = process.env.MONIME_SECRET_KEY?.startsWith('mon_test_')
+function getSupabaseAdmin(): SupabaseClient {
+  if (!supabaseAdmin) {
+    supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+  }
+  return supabaseAdmin
+}
+
+function isTestMode(): boolean {
+  return process.env.MONIME_SECRET_KEY?.startsWith('mon_test_') ?? false
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,10 +44,11 @@ export async function POST(req: NextRequest) {
 
     // Get all users without Monime accounts, or with local placeholder IDs
     // Local IDs start with "local_" and need to be upgraded to real Monime accounts in live mode
-    const { data: usersToMigrate, error: fetchError } = await supabaseAdmin
+    const testMode = isTestMode()
+    const { data: usersToMigrate, error: fetchError } = await getSupabaseAdmin()
       .from('user_profiles')
       .select('id, wallet_address, display_name, email, monime_financial_account_id, credit_balance')
-      .or(`monime_financial_account_id.is.null,credit_balance.is.null${!isTestMode ? ',monime_financial_account_id.like.local_%' : ''}`)
+      .or(`monime_financial_account_id.is.null,credit_balance.is.null${!testMode ? ',monime_financial_account_id.like.local_%' : ''}`)
 
     if (fetchError) {
       console.error('Error fetching users:', fetchError)
@@ -50,29 +59,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         message: 'No users need migration',
         migrated: 0,
-        mode: isTestMode ? 'test' : 'live'
+        mode: testMode ? 'test' : 'live'
       })
     }
 
-    console.log(`Found ${usersToMigrate.length} users to migrate (${isTestMode ? 'TEST' : 'LIVE'} mode)`)
+    console.log(`Found ${usersToMigrate.length} users to migrate (${testMode ? 'TEST' : 'LIVE'} mode)`)
 
     const results = {
       total: usersToMigrate.length,
       success: 0,
       failed: 0,
-      mode: isTestMode ? 'test' : 'live',
+      mode: testMode ? 'test' : 'live',
       errors: [] as { userId: string; wallet: string; error: string }[]
     }
 
     // Process users
     for (const user of usersToMigrate) {
       try {
-        if (isTestMode) {
+        if (testMode) {
           // TEST MODE: Just set up local credits tracking without Monime
           // Use a placeholder ID that indicates local-only tracking
           const localAccountId = `local_${user.id}`
 
-          const { error: updateError } = await supabaseAdmin
+          const { error: updateError } = await getSupabaseAdmin()
             .from('user_profiles')
             .update({
               monime_financial_account_id: localAccountId,
@@ -100,7 +109,7 @@ export async function POST(req: NextRequest) {
             }
           })
 
-          const { error: updateError } = await supabaseAdmin
+          const { error: updateError } = await getSupabaseAdmin()
             .from('user_profiles')
             .update({
               monime_financial_account_id: account.id,
@@ -156,12 +165,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Count users with and without Monime accounts
-    const { data: withAccount, error: error1 } = await supabaseAdmin
+    const { data: withAccount, error: error1 } = await getSupabaseAdmin()
       .from('user_profiles')
       .select('id', { count: 'exact' })
       .not('monime_financial_account_id', 'is', null)
 
-    const { data: withoutAccount, error: error2 } = await supabaseAdmin
+    const { data: withoutAccount, error: error2 } = await getSupabaseAdmin()
       .from('user_profiles')
       .select('id, wallet_address', { count: 'exact' })
       .is('monime_financial_account_id', null)
