@@ -248,9 +248,11 @@ export async function createCreditPurchaseSession(params: {
     amount: params.amount,
     financialAccountId: user.monime_financial_account_id,
     currency: 'SLE',
-    allowedPaymentMethods: ['orange_money', 'afrimoney'],
+    name: `${params.amount} Utopia Credits`,
+    description: `Top up your Utopia account with ${params.amount} credits`,
     successUrl: params.successUrl || `${process.env.NEXT_PUBLIC_APP_URL}/credits/success`,
     cancelUrl: params.cancelUrl || `${process.env.NEXT_PUBLIC_APP_URL}/credits/cancel`,
+    primaryColor: '#7C3AED', // Utopia purple theme
     metadata: {
       utopia_user_id: params.userId,
       wallet_address: user.wallet_address,
@@ -258,7 +260,7 @@ export async function createCreditPurchaseSession(params: {
     }
   })
 
-  return session.checkoutUrl
+  return session.redirectUrl
 }
 
 // ============================================================================

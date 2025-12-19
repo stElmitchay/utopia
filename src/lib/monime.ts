@@ -50,16 +50,26 @@ export interface MonimeInternalTransfer {
 
 export interface MonimeCheckoutSession {
   id: string
-  amount: MonimeAmount
+  name?: string
+  orderNumber?: string
   financialAccountId: string
-  checkoutUrl: string
-  status: 'active' | 'completed' | 'expired' | 'cancelled'
-  allowedPaymentMethods?: string[]
+  redirectUrl: string
+  status: 'pending' | 'completed' | 'expired' | 'cancelled'
   successUrl?: string
   cancelUrl?: string
+  lineItems?: {
+    data: Array<{
+      type: string
+      id: string
+      name: string
+      price: MonimeAmount
+      quantity: number
+      description?: string
+    }>
+  }
   metadata?: Record<string, any>
-  createdAt: string
-  expiresAt: string
+  createTime: string
+  expireTime: string
 }
 
 export interface MonimeMomo {
@@ -380,9 +390,11 @@ export class MonimeClient {
     amount: number
     financialAccountId: string
     currency?: string
-    allowedPaymentMethods?: string[]
+    name?: string
+    description?: string
     successUrl?: string
     cancelUrl?: string
+    primaryColor?: string  // Hex color for branding (e.g., '#7C3AED')
     metadata?: Record<string, any>
   }): Promise<MonimeCheckoutSession> {
     // Generate idempotency key
@@ -397,23 +409,34 @@ export class MonimeClient {
       }
     }
 
+    // Monime requires lineItems instead of a simple amount
+    const lineItems = [
+      {
+        type: 'custom' as const,
+        name: params.name || 'Utopia Credits',
+        price: {
+          currency: params.currency || 'SLE',
+          value: MonimeClient.toMinorUnits(params.amount)
+        },
+        quantity: 1,
+        description: params.description || `Purchase of ${params.amount} credits`
+      }
+    ]
+
     return this.request<MonimeCheckoutSession>('/checkout-sessions', {
       method: 'POST',
       headers: {
         'Idempotency-Key': idempotencyKey
       },
       body: JSON.stringify({
-        amount: {
-          currency: params.currency || 'SLE',
-          value: MonimeClient.toMinorUnits(params.amount)
-        },
+        name: params.name || 'Utopia Credits Top-Up',
         financialAccountId: params.financialAccountId,
-        allowedPaymentMethods: params.allowedPaymentMethods || [
-          'orange_money',
-          'afrimoney'
-        ],
+        lineItems,
         successUrl: params.successUrl,
         cancelUrl: params.cancelUrl,
+        brandingOptions: params.primaryColor ? {
+          primaryColor: params.primaryColor
+        } : undefined,
         metadata: stringMetadata
       })
     })
