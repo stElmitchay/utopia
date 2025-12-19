@@ -18,7 +18,7 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
   const hasRegistered = useRef(false)
 
   // Automatically register users when they log in
-  // These operations are INDEPENDENT - each one runs separately
+  // These operations are INDEPENDENT - each one runs separately, then linked
   useEffect(() => {
     if (!ready || !authenticated || !user || hasRegistered.current) {
       return
@@ -37,25 +37,44 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
     const walletAddress = solanaWallet.address
     const email = user.email?.address
 
-    // INDEPENDENT OPERATION 1: Create Supabase profile
-    fetch('/api/user/create-profile', {
+    // Run both operations in parallel, then link them
+    const createProfile = fetch('/api/user/create-profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress, email })
-    })
-      .then(res => res.json())
-      .then(data => console.log('[Supabase] Profile:', data))
-      .catch(err => console.error('[Supabase] Error:', err))
+    }).then(res => res.json())
 
-    // INDEPENDENT OPERATION 2: Create Monime financial account
-    fetch('/api/user/create-monime-account', {
+    const createMonime = fetch('/api/user/create-monime-account', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress, email })
-    })
-      .then(res => res.json())
-      .then(data => console.log('[Monime] Account:', data))
-      .catch(err => console.error('[Monime] Error:', err))
+    }).then(res => res.json())
+
+    // Wait for both to complete, then link
+    Promise.all([createProfile, createMonime])
+      .then(([profileData, monimeData]) => {
+        console.log('[Registration] Profile:', profileData)
+        console.log('[Registration] Monime:', monimeData)
+
+        // Link Monime account to profile if both succeeded
+        if (profileData.success && monimeData.success && monimeData.monimeAccountId) {
+          return fetch('/api/user/link-accounts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress,
+              monimeAccountId: monimeData.monimeAccountId
+            })
+          }).then(res => res.json())
+        }
+        return null
+      })
+      .then(linkData => {
+        if (linkData) {
+          console.log('[Registration] Linked:', linkData)
+        }
+      })
+      .catch(err => console.error('[Registration] Error:', err))
 
   }, [ready, authenticated, user])
 

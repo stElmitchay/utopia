@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { UserProfile } from '@/lib/supabase'
 import { ellipsify } from '../ui/ui-layout'
 import Link from 'next/link'
+import { useUserCredits, usePurchaseCredits } from '../credits/credits-data-access'
 
 interface ProfileCardProps {
   profile: UserProfile | null
@@ -14,6 +15,9 @@ interface ProfileCardProps {
 
 export function ProfileCard({ profile, walletAddress, onEdit, onLogout }: ProfileCardProps) {
   const [isCopied, setIsCopied] = useState(false)
+  const [topUpAmount, setTopUpAmount] = useState<number | null>(null)
+  const { data: credits, isLoading: creditsLoading } = useUserCredits()
+  const purchaseCredits = usePurchaseCredits()
 
   const handleCopyAddress = async () => {
     try {
@@ -87,6 +91,57 @@ export function ProfileCard({ profile, walletAddress, onEdit, onLogout }: Profil
           <p className="text-sm text-foreground font-mono">{profile.email}</p>
         </div>
       )}
+
+      {/* Credits Section */}
+      <div className="p-4 border-b-2 border-border">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold mb-2">
+          Credits Balance
+        </div>
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-2xl font-bold text-accent">
+            ◆ {creditsLoading ? '...' : (credits?.balance || 0).toLocaleString()}
+          </span>
+        </div>
+
+        {/* Top Up Options */}
+        <div className="space-y-3">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold">
+            Top Up
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[10, 50, 100].map((amount) => (
+              <button
+                key={amount}
+                onClick={() => setTopUpAmount(amount)}
+                className={`px-3 py-2 text-sm font-bold border-2 transition-colors ${
+                  topUpAmount === amount
+                    ? 'border-accent bg-accent text-background'
+                    : 'border-border text-foreground hover:border-accent'
+                }`}
+              >
+                {amount}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              placeholder="Custom amount"
+              min="1"
+              value={topUpAmount || ''}
+              onChange={(e) => setTopUpAmount(e.target.value ? parseInt(e.target.value) : null)}
+              className="flex-1 px-3 py-2 bg-muted/20 border-2 border-border text-foreground text-sm font-mono focus:outline-none focus:border-accent transition-colors placeholder-muted-foreground"
+            />
+            <button
+              onClick={() => topUpAmount && purchaseCredits.mutate(topUpAmount)}
+              disabled={!topUpAmount || purchaseCredits.isPending}
+              className="px-4 py-2 bg-accent text-background font-bold text-sm uppercase tracking-wide border-2 border-accent hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {purchaseCredits.isPending ? '...' : 'Buy'}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Actions */}
       <div className="p-4 space-y-3">
