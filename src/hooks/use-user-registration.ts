@@ -2,77 +2,86 @@
 
 import { useEffect, useRef } from 'react'
 import { usePrivy } from '@privy-io/react-auth'
-import { useWallets } from '@privy-io/react-auth/solana'
 
 /**
  * Hook that automatically registers users when they log in.
  * Creates Supabase profile and Monime financial account.
- *
- * Uses useWallets() hook to properly detect when Solana wallet is ready,
- * as user.linkedAccounts may not update immediately after wallet creation.
  */
 export function useUserRegistration() {
-  const { authenticated, user } = usePrivy()
-  const { ready: walletsReady, wallets } = useWallets()
+  const { ready, authenticated, user } = usePrivy()
   const hasRegistered = useRef(false)
+  const registrationInProgress = useRef(false)
 
   useEffect(() => {
-    // Only run once per session when user authenticates and wallets are ready
-    if (!authenticated || !user || !walletsReady || hasRegistered.current) {
+    console.log('[UserRegistration] Effect running:', {
+      ready,
+      authenticated,
+      hasUser: !!user,
+      linkedAccountsCount: user?.linkedAccounts?.length,
+      hasRegistered: hasRegistered.current,
+      inProgress: registrationInProgress.current
+    })
+
+    // Wait for Privy to be ready and user to be authenticated
+    if (!ready || !authenticated || !user) {
+      console.log('[UserRegistration] Waiting for auth...')
       return
     }
 
-    // Get wallet address from useWallets hook (more reliable than user.linkedAccounts)
-    const solanaWallet = wallets[0]
-    const walletAddress = solanaWallet?.address
-
-    if (!walletAddress) {
-      console.log('[UserRegistration] No Solana wallet found yet')
+    // Prevent duplicate registrations
+    if (hasRegistered.current || registrationInProgress.current) {
+      console.log('[UserRegistration] Already registered or in progress')
       return
     }
 
+    // Find Solana wallet in linked accounts
+    const solanaWallet = user.linkedAccounts?.find(
+      (account: any) =>
+        account.type === 'wallet' &&
+        account.chainType === 'solana' &&
+        account.address
+    ) as { address: string } | undefined
+
+    if (!solanaWallet?.address) {
+      console.log('[UserRegistration] No Solana wallet found in linkedAccounts:', user.linkedAccounts)
+      return
+    }
+
+    const walletAddress = solanaWallet.address
     const email = user.email?.address
 
-    console.log('[UserRegistration] Wallet ready, registering user:', walletAddress)
+    console.log('[UserRegistration] Starting registration for:', walletAddress)
 
-    // Mark as registered to prevent duplicate calls
-    hasRegistered.current = true
+    // Mark registration in progress
+    registrationInProgress.current = true
 
-    // Register user asynchronously
-    registerUser(walletAddress, email)
-  }, [authenticated, user, walletsReady, wallets])
-
-  return null
-}
-
-async function registerUser(walletAddress: string, email?: string) {
-  try {
-    console.log('[UserRegistration] Registering user:', walletAddress)
-
-    const response = await fetch('/api/user/register', {
+    // Register user
+    fetch('/api/user/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress, email })
     })
+      .then(res => {
+        console.log('[UserRegistration] Response status:', res.status)
+        return res.json()
+      })
+      .then(data => {
+        console.log('[UserRegistration] Response:', data)
+        if (data.success) {
+          hasRegistered.current = true
+          console.log('[UserRegistration] ✅ Success:', data.isNew ? 'New user' : 'Existing user')
+        } else {
+          console.error('[UserRegistration] ❌ Failed:', data.error)
+        }
+      })
+      .catch(err => {
+        console.error('[UserRegistration] ❌ Error:', err)
+      })
+      .finally(() => {
+        registrationInProgress.current = false
+      })
 
-    const data = await response.json()
+  }, [ready, authenticated, user])
 
-    if (data.success) {
-      if (data.isNew) {
-        console.log('[UserRegistration] New user registered:', data.userId)
-      } else {
-        console.log('[UserRegistration] Existing user found:', data.userId)
-      }
-
-      if (data.monimeAccountId) {
-        console.log('[UserRegistration] Monime account:', data.monimeAccountId)
-      } else if (data.warning) {
-        console.warn('[UserRegistration] Warning:', data.warning)
-      }
-    } else {
-      console.error('[UserRegistration] Failed:', data.error)
-    }
-  } catch (error) {
-    console.error('[UserRegistration] Error:', error)
-  }
+  return null
 }
