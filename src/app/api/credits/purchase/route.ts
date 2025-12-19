@@ -58,7 +58,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Get user by wallet address
     const { data: user, error: userError } = await supabase
       .from('user_profiles')
-      .select('id')
+      .select('id, monime_financial_account_id')
       .eq('wallet_address', walletAddress)
       .single()
 
@@ -66,6 +66,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         { error: 'User not found. Please ensure your account is set up.' },
         { status: 404 }
+      )
+    }
+
+    if (!user.monime_financial_account_id) {
+      return NextResponse.json(
+        { error: 'Payment account not set up yet. Please try again in a moment.' },
+        { status: 400 }
       )
     }
 

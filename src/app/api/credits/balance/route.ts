@@ -51,14 +51,32 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       })
     }
 
-    // Get balance (from cache or Monime)
-    const balance = await getUserCredits(user.id, false)
+    // If user doesn't have a Monime account yet, return cached balance
+    if (!user.monime_financial_account_id) {
+      return NextResponse.json({
+        balance: user.credit_balance || 0,
+        monimeAccountId: null,
+        lastSync: user.last_balance_sync
+      })
+    }
 
-    return NextResponse.json({
-      balance,
-      monimeAccountId: user.monime_financial_account_id,
-      lastSync: user.last_balance_sync
-    })
+    // Get balance (from cache or Monime)
+    try {
+      const balance = await getUserCredits(user.id, false)
+      return NextResponse.json({
+        balance,
+        monimeAccountId: user.monime_financial_account_id,
+        lastSync: user.last_balance_sync
+      })
+    } catch (balanceError: any) {
+      // If Monime fetch fails, return cached balance
+      console.error('Error fetching from Monime, using cache:', balanceError.message)
+      return NextResponse.json({
+        balance: user.credit_balance || 0,
+        monimeAccountId: user.monime_financial_account_id,
+        lastSync: user.last_balance_sync
+      })
+    }
   } catch (error: any) {
     console.error('Error fetching credit balance:', error)
 
