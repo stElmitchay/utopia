@@ -394,6 +394,7 @@ export class MonimeClient {
     description?: string
     successUrl?: string
     cancelUrl?: string
+    primaryColor?: string  // Hex color for branding (e.g., '#7C3AED')
     metadata?: Record<string, any>
   }): Promise<MonimeCheckoutSession> {
     // Generate idempotency key
@@ -433,6 +434,9 @@ export class MonimeClient {
         lineItems,
         successUrl: params.successUrl,
         cancelUrl: params.cancelUrl,
+        brandingOptions: params.primaryColor ? {
+          primaryColor: params.primaryColor
+        } : undefined,
         metadata: stringMetadata
       })
     })

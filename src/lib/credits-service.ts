@@ -252,6 +252,7 @@ export async function createCreditPurchaseSession(params: {
     description: `Top up your Utopia account with ${params.amount} credits`,
     successUrl: params.successUrl || `${process.env.NEXT_PUBLIC_APP_URL}/credits/success`,
     cancelUrl: params.cancelUrl || `${process.env.NEXT_PUBLIC_APP_URL}/credits/cancel`,
+    primaryColor: '#7C3AED', // Utopia purple theme
     metadata: {
       utopia_user_id: params.userId,
       wallet_address: user.wallet_address,
