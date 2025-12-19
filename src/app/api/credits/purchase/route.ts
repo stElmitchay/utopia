@@ -5,6 +5,8 @@
  * Body: { walletAddress: string, amount: number }
  */
 
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createCreditPurchaseSession } from '@/lib/credits-service'
 import { createClient } from '@supabase/supabase-js'
@@ -26,8 +28,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const { walletAddress, amount } = body
 
     // Get base URL from request or environment
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
       req.headers.get('origin') ||
       'http://localhost:3000'
 
