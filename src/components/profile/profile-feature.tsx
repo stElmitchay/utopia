@@ -2,8 +2,10 @@
 
 import { usePrivy } from '@privy-io/react-auth'
 import { useWallets } from '@privy-io/react-auth/solana'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useVotingProgram } from '../voting/voting-data-access'
+import { useRefreshCredits } from '../credits/credits-data-access'
 import { ProfileCard, ProfileEditForm, CreatedPollsList, VotedPollsList } from './profile-ui'
 import { getOrCreateProfile, updateProfile, updateProfileAvatar } from '@/lib/profile-service'
 import { UserProfile } from '@/lib/supabase'
@@ -14,11 +16,41 @@ export function ProfileFeature() {
   const { ready, authenticated, user, logout } = usePrivy()
   const { ready: walletsReady, wallets } = useWallets()
   const { getUserCreatedPolls, getUserVoteRecords, polls, getPollCandidates } = useVotingProgram()
+  const refreshCredits = useRefreshCredits()
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState<'created' | 'voted'>('created')
+  const hasHandledTopup = useRef(false)
+
+  // Handle top-up redirect and sync balance
+  useEffect(() => {
+    const topupStatus = searchParams.get('topup')
+
+    if (hasHandledTopup.current) return
+
+    if (topupStatus === 'success') {
+      hasHandledTopup.current = true
+      // Immediately sync balance from Monime
+      refreshCredits.mutate(undefined, {
+        onSuccess: () => {
+          toast.success('Credits added successfully!')
+        },
+        onError: () => {
+          toast.success('Payment received! Balance will update shortly.')
+        }
+      })
+      // Clear the query param
+      router.replace('/profile', { scroll: false })
+    } else if (topupStatus === 'cancelled') {
+      hasHandledTopup.current = true
+      toast.error('Top-up was cancelled')
+      router.replace('/profile', { scroll: false })
+    }
+  }, [searchParams, router, refreshCredits])
 
   const solanaWallet = useMemo(() => {
     if (!ready || !authenticated || !walletsReady || wallets.length === 0) return null
