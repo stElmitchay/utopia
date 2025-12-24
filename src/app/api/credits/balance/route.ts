@@ -7,7 +7,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserCredits } from '@/lib/credits-service'
+import { syncUserBalance } from '@/lib/credits-service'
 import { createClient } from '@supabase/supabase-js'
 
 function getSupabaseClient() {
@@ -54,27 +54,33 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // If user doesn't have a Monime account yet, return cached balance
     if (!user.monime_financial_account_id) {
       return NextResponse.json({
-        balance: user.credit_balance || 0,
+        balance: (user.credit_balance || 0) / 100, // Convert to major units
         monimeAccountId: null,
         lastSync: user.last_balance_sync
       })
     }
 
-    // Get balance (from cache or Monime)
+    // Always fetch fresh balance from Monime
     try {
-      const balance = await getUserCredits(user.id, false)
+      const balance = await syncUserBalance(
+        user.id,
+        user.monime_financial_account_id,
+        'manual'
+      )
+
       return NextResponse.json({
         balance,
         monimeAccountId: user.monime_financial_account_id,
-        lastSync: user.last_balance_sync
+        lastSync: new Date().toISOString()
       })
     } catch (balanceError: any) {
       // If Monime fetch fails, return cached balance
       console.error('Error fetching from Monime, using cache:', balanceError.message)
       return NextResponse.json({
-        balance: user.credit_balance || 0,
+        balance: (user.credit_balance || 0) / 100, // Convert to major units
         monimeAccountId: user.monime_financial_account_id,
-        lastSync: user.last_balance_sync
+        lastSync: user.last_balance_sync,
+        error: balanceError.message
       })
     }
   } catch (error: any) {
