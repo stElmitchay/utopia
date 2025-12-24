@@ -3,8 +3,8 @@
  *
  * Handles webhook events from Monime for:
  * - checkout_session.completed (user deposits)
- * - internal_transfer.succeeded (credit deductions)
- * - internal_transfer.failed (failed deductions for refunds)
+ * - internal_transfer.completed (credit transfers)
+ * - internal_transfer.failed (failed transfers for refunds)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -287,6 +287,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           break
 
         case 'internal_transfer.succeeded':
+        case 'internal_transfer.completed':
           await handleInternalTransferSucceeded(
             event.data.object as InternalTransferData
           )
@@ -341,7 +342,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     endpoint: '/api/webhooks/monime',
     events: [
       'checkout_session.completed',
-      'internal_transfer.succeeded',
+      'internal_transfer.completed',
       'internal_transfer.failed'
     ]
   })
