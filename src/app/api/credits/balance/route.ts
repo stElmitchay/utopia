@@ -2,13 +2,15 @@
  * Get User Credit Balance
  *
  * GET /api/credits/balance?wallet=<wallet_address>
+ *
+ * Always fetches fresh balance from Monime and updates Supabase
  */
 
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { syncUserBalance } from '@/lib/credits-service'
 import { createClient } from '@supabase/supabase-js'
+import { getMonimeClient } from '@/lib/monime'
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -43,7 +45,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .single()
 
     if (userError || !user) {
-      // User doesn't exist yet (first time login)
       return NextResponse.json({
         balance: 0,
         monimeAccountId: null,
@@ -51,40 +52,46 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       })
     }
 
-    // If user doesn't have a Monime account yet, return cached balance
+    // If user doesn't have a Monime account yet, return 0
     if (!user.monime_financial_account_id) {
       return NextResponse.json({
-        balance: (user.credit_balance || 0) / 100, // Convert to major units
+        balance: 0,
         monimeAccountId: null,
-        lastSync: user.last_balance_sync
+        lastSync: null
       })
     }
 
-    // Always fetch fresh balance from Monime
-    try {
-      const balance = await syncUserBalance(
-        user.id,
-        user.monime_financial_account_id,
-        'manual'
-      )
+    // Fetch balance directly from Monime
+    const monime = getMonimeClient()
+    const account = await monime.getFinancialAccount(user.monime_financial_account_id)
+    const balanceMinorUnits = account.balance.available.value
+    const balanceMajorUnits = balanceMinorUnits / 100
 
-      return NextResponse.json({
-        balance,
-        monimeAccountId: user.monime_financial_account_id,
-        lastSync: new Date().toISOString()
+    console.log(`[Balance] Fetched from Monime: ${balanceMinorUnits} minor units (${balanceMajorUnits} SLE)`)
+
+    // Update Supabase directly
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update({
+        credit_balance: balanceMinorUnits,
+        last_balance_sync: new Date().toISOString()
       })
-    } catch (balanceError: any) {
-      // If Monime fetch fails, return cached balance
-      console.error('Error fetching from Monime, using cache:', balanceError.message)
-      return NextResponse.json({
-        balance: (user.credit_balance || 0) / 100, // Convert to major units
-        monimeAccountId: user.monime_financial_account_id,
-        lastSync: user.last_balance_sync,
-        error: balanceError.message
-      })
+      .eq('id', user.id)
+
+    if (updateError) {
+      console.error('[Balance] Failed to update Supabase:', updateError)
+    } else {
+      console.log(`[Balance] Updated Supabase: ${balanceMinorUnits} minor units`)
     }
+
+    return NextResponse.json({
+      balance: balanceMajorUnits,
+      monimeAccountId: user.monime_financial_account_id,
+      lastSync: new Date().toISOString()
+    })
+
   } catch (error: any) {
-    console.error('Error fetching credit balance:', error)
+    console.error('[Balance] Error:', error)
 
     return NextResponse.json(
       { error: 'Failed to fetch credit balance', message: error.message },
