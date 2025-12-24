@@ -110,8 +110,8 @@ export function useUserCredits() {
     queryKey: ['credits', 'balance', walletAddress],
     queryFn: () => fetchUserCredits(walletAddress!),
     enabled: !!walletAddress,
-    refetchInterval: 10 * 60 * 1000, // Refetch every 10 minutes
-    staleTime: 5 * 60 * 1000 // Consider stale after 5 minutes
+    refetchInterval: 30 * 1000, // Refetch every 30 seconds
+    staleTime: 10 * 1000 // Consider stale after 10 seconds
   })
 }
 
