@@ -64,6 +64,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // Fetch balance directly from Monime
     const monime = getMonimeClient()
     const account = await monime.getFinancialAccount(user.monime_financial_account_id)
+
+    // Debug: Log full account response
+    console.log(`[Balance] Full Monime response:`, JSON.stringify(account, null, 2))
+
     const balanceMinorUnits = account.balance.available.value
     const balanceMajorUnits = balanceMinorUnits / 100
 
