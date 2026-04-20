@@ -239,69 +239,24 @@ export function PollDetail({ poll, publicKey, onUpdate }: PollDetailProps) {
               </div>
             </div>
 
-            {/* Right Column - Details */}
+            {/* Right Column - Voting First, then Details */}
             <div className="space-y-6">
-              {/* Title & Description */}
+              {/* Title */}
               <div>
-                <h1 className="text-4xl font-bold text-foreground uppercase tracking-wide brutalist-title mb-4">
+                <h1 className="text-4xl font-bold text-foreground uppercase tracking-wide brutalist-title mb-2">
                   {poll.description}
                 </h1>
-                <p className="text-muted-foreground font-mono text-sm">
-                  Poll ID: #{poll.pollId.toString()}
-                </p>
-              </div>
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-card border-2 border-border p-4">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold mb-2">
-                    Total Votes
-                  </div>
-                  <div className="text-2xl font-bold text-accent">
-                    {isLoading ? '...' : totalVotes.toLocaleString()}
-                  </div>
-                </div>
-
-                <div className="bg-card border-2 border-border p-4">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold mb-2">
-                    Candidates
-                  </div>
-                  <div className="text-2xl font-bold text-foreground">
-                    {isLoading ? '...' : candidates.length}
-                  </div>
-                </div>
-
-                <div className="bg-card border-2 border-border p-4">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold mb-2">
-                    Status
-                  </div>
-                  <div className={`text-xl font-bold ${
-                    status === 'LIVE' ? 'text-accent' :
-                    status === 'ENDED' ? 'text-red-500' :
-                    'text-yellow-500'
+                <div className="flex items-center gap-4">
+                  <span className="text-muted-foreground font-mono text-sm">
+                    Poll #{poll.pollId.toString()}
+                  </span>
+                  <span className={`px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                    status === 'LIVE' ? 'bg-accent text-background' :
+                    status === 'ENDED' ? 'bg-red-500 text-white' :
+                    'bg-yellow-500 text-black'
                   }`}>
-                    {status}
-                  </div>
-                </div>
-              </div>
-
-              {/* Time Info */}
-              <div className="bg-muted/20 border-2 border-border p-4">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground font-mono font-bold uppercase">Start Time</span>
-                    <span className="text-sm text-foreground font-mono">{formatDate(poll.pollStart.toNumber())}</span>
-                  </div>
-                  <div className="border-t-2 border-border"></div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground font-mono font-bold uppercase">End Time</span>
-                    <span className="text-sm text-foreground font-mono">{formatDate(poll.pollEnd.toNumber())}</span>
-                  </div>
-                  <div className="border-t-2 border-border"></div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground font-mono font-bold uppercase">Time Status</span>
-                    <span className="text-sm text-accent font-mono font-bold">{getTimeRemaining()}</span>
-                  </div>
+                    {status} • {getTimeRemaining()}
+                  </span>
                 </div>
               </div>
 
@@ -315,7 +270,7 @@ export function PollDetail({ poll, publicKey, onUpdate }: PollDetailProps) {
                 </div>
               )}
 
-              {/* Voting Section */}
+              {/* Voting Section - Now at the top */}
               {isLoading ? (
                 <div className="flex justify-center py-12 bg-card border-2 border-border">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
@@ -339,6 +294,57 @@ export function PollDetail({ poll, publicKey, onUpdate }: PollDetailProps) {
                   <p className="text-sm text-muted-foreground font-mono">Candidates will be added soon</p>
                 </div>
               )}
+
+              {/* Poll Details Section - Now below voting */}
+              <div className="bg-card border-2 border-border p-6">
+                <h3 className="text-lg font-bold text-foreground uppercase tracking-wide mb-4">Poll Details</h3>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div className="bg-muted/20 border-2 border-border p-3">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold mb-1">
+                      Total Votes
+                    </div>
+                    <div className="text-xl font-bold text-accent">
+                      {isLoading ? '...' : totalVotes.toLocaleString()}
+                    </div>
+                  </div>
+
+                  <div className="bg-muted/20 border-2 border-border p-3">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold mb-1">
+                      Candidates
+                    </div>
+                    <div className="text-xl font-bold text-foreground">
+                      {isLoading ? '...' : candidates.length}
+                    </div>
+                  </div>
+
+                  <div className="bg-muted/20 border-2 border-border p-3">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide font-mono font-bold mb-1">
+                      Status
+                    </div>
+                    <div className={`text-lg font-bold ${
+                      status === 'LIVE' ? 'text-accent' :
+                      status === 'ENDED' ? 'text-red-500' :
+                      'text-yellow-500'
+                    }`}>
+                      {status}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Time Info */}
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center py-2 border-b border-border">
+                    <span className="text-muted-foreground font-mono font-bold uppercase">Start</span>
+                    <span className="text-foreground font-mono">{formatDate(poll.pollStart.toNumber())}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-muted-foreground font-mono font-bold uppercase">End</span>
+                    <span className="text-foreground font-mono">{formatDate(poll.pollEnd.toNumber())}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
